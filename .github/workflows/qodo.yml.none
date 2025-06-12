@@ -1,0 +1,57 @@
+name: Qodo Cover Weekly
+on:
+  schedule:
+    - cron: "0 0 * * 0" # Runs every Sunday at midnight (weekly)
+  workflow_dispatch: # Allow manual trigger as well
+
+permissions:
+  pull-requests: write # Permit creating/comments on PRs
+  contents: write # Permit reading/writing repo contents
+
+jobs:
+  run-qodo-cover:
+    runs-on: ubuntu-22.04 # Qodo requires Ubuntu 22.04 x64 runner [oai_citation:1‡github.com](https://github.com/qodo-ai/qodo-ci#:~:text=%2A%20Must%20run%20on%20ubuntu,produces%20coverage%20reports%20in%20Cobertura)
+    services:
+      db:
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: quore_test
+        image: postgres:17
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/quore_test
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.13" # or your project’s Python version
+
+      - name: Install dependencies
+        run: |
+          pipx install poetry && poetry install
+
+      - name: Run Qodo Cover
+        uses: qodo-ai/qodo-ci/.github/actions/qodo-cover@v0.1.12
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: main # Target branch for PR (e.g. main)
+          project_language: python # Language (default is python)
+          project_root: . # Path to FastAPI project root
+          code_coverage_report_path: ./coverage.xml # Coverage report file
+          coverage_type: cobertura # Format of coverage report
+          test_command: pytest --cov=. --cov-report=xml --cov-report=term # Run tests with coverage
+          desired_coverage: 80 # Target coverage %
+          model: gpt-4o # LLM model (e.g., GPT-4)
+          max_iterations: 3 # Max attempts per file to generate tests
+          run_each_test_separately: true # Run new tests individually for speed
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
