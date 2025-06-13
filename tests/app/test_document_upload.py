@@ -1,11 +1,8 @@
 import pytest
-import pytest_asyncio
 from fastapi import UploadFile
 from io import BytesIO
-from uuid import UUID
 from app.services.document_upload import upload_document
 from app.services.document import DocumentService
-from app.schemas.document import Label
 from app.storage.base import StorageBackend
 from app.constants.document import DocumentState
 
@@ -74,10 +71,10 @@ def test_file():
 @pytest.fixture
 def test_labels():
     """Create test labels for document upload."""
-    return [
-        Label(key="type", value="test"),
-        Label(key="status", value="draft"),
-    ]
+    return {
+        "type": "test",
+        "status": "draft",
+    }
 
 
 @pytest.mark.asyncio
@@ -125,10 +122,8 @@ async def test_upload_with_custom_name_and_labels(
     # Verify response
     assert response.name == custom_name
     assert len(response.labels) == 2
-    assert response.labels[0].key == "type"
-    assert response.labels[0].value == "test"
-    assert response.labels[1].key == "status"
-    assert response.labels[1].value == "draft"
+    assert response.labels["type"] == "test"
+    assert response.labels["status"] == "draft"
 
     # Verify document in database
     document = document_service.get_document(response.document_id)

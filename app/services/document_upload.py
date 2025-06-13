@@ -1,11 +1,10 @@
-from typing import Optional
+from typing import Optional, Dict, Any
 from uuid import UUID
 from fastapi import UploadFile
 from app.services.document import DocumentService
 from app.schemas.document import (
     DocumentCreate,
     DocumentUpdate,
-    Label,
     DocumentUploadResponse,
 )
 from app.storage.base import StorageBackend
@@ -18,7 +17,7 @@ async def upload_document(
     document_service: DocumentService,
     storage: StorageBackend,
     name: Optional[str] = None,
-    labels: Optional[list[Label]] = None,
+    labels: Optional[Dict[str, Any]] = None,
 ) -> DocumentUploadResponse:
     """
     Upload a file and create a document record.
@@ -29,7 +28,7 @@ async def upload_document(
         document_service: DocumentService instance
         storage: StorageBackend instance
         name: Optional custom name for the document (defaults to original filename)
-        labels: Optional list of labels to attach to the document
+        labels: Optional dictionary of labels to attach to the document
 
     Returns:
         DocumentUploadResponse: Document information including ID and URL
@@ -46,7 +45,7 @@ async def upload_document(
         filename=file.filename,
         mime_type=file.content_type or "application/octet-stream",
         size=file_size,
-        labels=labels or [],
+        labels=labels or {},
         state=DocumentState.PENDING.value,
         state_message="Document record created, waiting for upload",
     )

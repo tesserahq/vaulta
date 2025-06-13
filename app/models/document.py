@@ -23,9 +23,7 @@ class Document(Base, TimestampMixin):
     user_id = Column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
     )  # Owner of the document
-    labels = Column(
-        JSONB, default=list, nullable=False
-    )  # Array of key-value pairs for document labels
+    labels = Column(JSONB, default=dict, nullable=False)  # Dictionary of labels
     state = Column(String, nullable=False)  # Document state
     state_message = Column(
         String, nullable=True
