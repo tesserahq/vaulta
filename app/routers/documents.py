@@ -8,7 +8,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.services.document_upload import upload_document
-from app.schemas.document import DocumentUploadResponse, Document
+from app.schemas.document import DocumentSearchQuery, DocumentUploadResponse, Document
 from app.models.user import User
 from app.services.document import DocumentService
 import json
@@ -115,8 +115,12 @@ async def get_documents_by_labels(
 
     print(query.query.labels)
     document_service = DocumentService(db)
-    documents = document_service.search_by_labels(
-        labels=query.query.labels,  # Pass the labels dictionary directly
+    documents = document_service.search(
+        query=DocumentSearchQuery(
+            labels=query.query.labels,
+            skip=skip,
+            limit=limit,
+        )
         skip=skip,
         limit=limit,
     )
