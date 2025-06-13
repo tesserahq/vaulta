@@ -17,7 +17,7 @@ jobs:
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: quore_test
+          POSTGRES_DB: vaulta_test
         image: pgvector/pgvector:pg17
         ports: ["5432:5432"]
         options: >-
@@ -34,7 +34,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/quore_test
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/vaulta_test
       CREDENTIAL_MASTER_KEY: "test"
       ENV: test
       ROLLBAR_ACCESS_TOKEN: 7cd9dd0b5df9462b8ebdfb522af61cd2
