@@ -1,0 +1,41 @@
+---
+description: Use this rule when generating or updating API routers. It enforces a consistent response format ({"data": [...]}), prevents redundant foreign keys in request bodies, and promotes clean multi-tenant patterns. Always validate parent scope (e.g., workspace) via the URL, not the payload.
+globs: 
+alwaysApply: false
+---
+In the routers directory:
+
+* Create a file named <model>_router.py
+* Define an APIRouter instance with:
+* prefix="/<model_plural>" or for nested: prefix="/workspaces/{workspace_id}/<model_plural>"
+* tags=["<Model>"]
+* Implement the following endpoints:
+* GET / – list all items, returns { "data": [...] }
+* GET /{id} – retrieve a specific item by ID
+* POST / – create a new item
+* PUT /{id} – update an existing item
+* DELETE /{id} – delete an item
+* Use the corresponding service (<Model>Service) for database interaction
+* Use Pydantic schemas for validation (<Model>CreateRequest, <Model>Update)
+* Do not include workspace_id in the request body schema if it’s passed via the URL
+
+Nested Resources
+
+For workspace-scoped routes:
+* Use prefix="/workspaces/{workspace_id}/<resource_plural>"
+* Accept workspace_id as a path parameter in each route function
+* Always call get_workspace_by_id(workspace_id, db) at the start of the route to:
+* Validate the workspace exists
+* Enforce access control and scope
+* Inject workspace_id manually into service-layer calls, not the request body
+
+```python
+@router.post("/", response_model=CredentialRead)
+def create_credential(
+    workspace_id: UUID,
+    data: CredentialCreateRequest,
+    db: Session = Depends(get_db),
+):
+    workspace = get_workspace_by_id(workspace_id, db)
+    return CredentialService(db).create_credential(data, workspace_id=workspace.id)
+```

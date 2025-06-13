@@ -1,13 +1,12 @@
 import logging
+from app.middleware.db_session import DBSessionMiddleware
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 import rollbar
 from rollbar.logger import RollbarHandler
 
-from .routers import (
-    files
-)
+from .routers import documents
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from app.telemetry import setup_tracing
 from app.exceptions.handlers import register_exception_handlers
@@ -45,6 +44,7 @@ def create_app(testing: bool = False, auth_middleware=None) -> FastAPI:
         if auth_middleware:
             app.add_middleware(auth_middleware)
 
+    app.add_middleware(DBSessionMiddleware)
 
     # TODO: Restrict this to the allowed origins
     app.add_middleware(
@@ -55,7 +55,7 @@ def create_app(testing: bool = False, auth_middleware=None) -> FastAPI:
         allow_headers=["*"],  # Permitir todos los headers
     )
 
-    app.include_router(files.router)
+    app.include_router(documents.router)
 
     register_exception_handlers(app)
 
