@@ -12,6 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 pytest_plugins = [
     "tests.fixtures.user_fixtures",
+    "tests.fixtures.document_fixtures",
 ]
 
 logger = logging.getLogger(__name__)

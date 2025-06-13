@@ -1,5 +1,5 @@
-from fastapi import APIRouter, UploadFile, Depends, HTTPException, Form, File
-from typing import Optional, List
+from fastapi import APIRouter, UploadFile, Depends, HTTPException, Form, File, Query
+from typing import Optional, List, Dict, Any
 from fastapi.responses import FileResponse
 from app.storage.base import StorageBackend
 from app.storage.factory import StorageFactory
@@ -8,10 +8,11 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.services.document_upload import upload_document
-from app.schemas.document import DocumentUploadResponse, Label
+from app.schemas.document import DocumentUploadResponse, Document
 from app.models.user import User
 from app.services.document import DocumentService
 import json
+from pydantic import BaseModel
 
 from app.utils.auth import get_current_user
 
@@ -65,6 +66,64 @@ async def download_document(
         raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
 
 
+class DocumentLabels(BaseModel):
+    """Labels for document search."""
+
+    labels: Dict[str, Any]
+
+
+class DocumentQuery(BaseModel):
+    """Query parameters for document search."""
+
+    query: DocumentLabels
+
+
+@router.post("/search", response_model=List[Document])
+async def get_documents_by_labels(
+    query: DocumentQuery,
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(
+        100, ge=1, le=1000, description="Maximum number of records to return"
+    ),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get documents based on query parameters.
+
+    The request body should contain search criteria.
+    Currently supported criteria:
+    - query.labels: Dictionary of labels to search for. Documents must match ALL specified labels.
+
+    Example request body:
+    {
+        "query": {
+            "labels": {
+                "status": "active",
+                "type": "contract",
+                "priority": "high"
+            }
+        }
+    }
+
+    Documents must have ALL the specified labels with matching values to be included in the results.
+    """
+    if not query.query.labels:
+        raise HTTPException(
+            status_code=400, detail="Labels must contain at least one key-value pair"
+        )
+
+    print(query.query.labels)
+    document_service = DocumentService(db)
+    documents = document_service.search_by_labels(
+        labels=query.query.labels,  # Pass the labels dictionary directly
+        skip=skip,
+        limit=limit,
+    )
+
+    return documents
+
+
 @router.post("", response_model=DocumentUploadResponse)
 async def upload_document_endpoint(
     file: UploadFile = File(...),
@@ -79,7 +138,7 @@ async def upload_document_endpoint(
     This endpoint accepts multipart form data with the following fields:
     - file: The file to upload (required)
     - name: Optional custom name for the document
-    - labels: Optional JSON string containing an array of label objects
+    - labels: Optional JSON string containing a dictionary of labels
     
     Example using curl:
     ```bash
@@ -87,7 +146,7 @@ async def upload_document_endpoint(
       -H "Authorization: Bearer YOUR_TOKEN" \
       -F "file=@/path/to/file.pdf" \
       -F "name=Custom Name" \
-      -F "labels=[{\"key\":\"type\",\"value\":\"contract\"}]"
+      -F "labels={\"emi\": 1234, \"hello\": \"asdf\"}"
     ```
     
     Example using Python requests:
@@ -97,7 +156,7 @@ async def upload_document_endpoint(
     files = {'file': open('file.pdf', 'rb')}
     data = {
         'name': 'Custom Name',
-        'labels': json.dumps([{'key': 'type', 'value': 'contract'}])
+        'labels': json.dumps({'emi': 1234, 'hello': 'asdf'})
     }
     
     response = requests.post(
@@ -110,11 +169,13 @@ async def upload_document_endpoint(
     """
     # Parse labels from JSON string if provided
     parsed_labels = None
-    print("labels", labels)
     if labels:
         try:
-            labels_data = json.loads(labels)
-            parsed_labels = [Label(**label) for label in labels_data]
+            parsed_labels = json.loads(labels)
+            if not isinstance(parsed_labels, dict):
+                raise HTTPException(
+                    status_code=400, detail="Labels must be a dictionary"
+                )
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid labels format")
         except Exception as e:

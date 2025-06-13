@@ -1,15 +1,8 @@
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List
+from typing import Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime
 from app.constants.document import DocumentState
-
-
-class Label(BaseModel):
-    """Schema for document labels."""
-
-    key: str
-    value: str
 
 
 class DocumentBase(BaseModel):
@@ -23,8 +16,8 @@ class DocumentBase(BaseModel):
     """File type (e.g., application/pdf, image/jpeg)."""
     size: int
     """File size in bytes."""
-    labels: List[Label] = Field(default_factory=list)
-    """Array of key-value pairs for document labels."""
+    labels: Dict[str, Any] = Field(default_factory=dict)
+    """Dictionary of labels."""
     state: str
     state_message: Optional[str] = None
 
@@ -50,7 +43,7 @@ class DocumentUpdate(BaseModel):
 
     name: Optional[str] = None
     """Updated document name."""
-    labels: Optional[List[Label]] = None
+    labels: Optional[Dict[str, Any]] = None
     """Updated document labels."""
     state: Optional[str] = None
     state_message: Optional[str] = None
@@ -115,8 +108,8 @@ class DocumentUploadResponse(BaseModel):
     """File size in bytes."""
     human_readable_size: str
     """File size in a human-readable format (e.g., '1.5 MB')."""
-    labels: List[Label]
-    """Array of key-value pairs for document labels."""
+    labels: Dict[str, Any]
+    """Dictionary of labels."""
     state: str
     """Current state of the document."""
     state_message: str
@@ -126,3 +119,30 @@ class DocumentUploadResponse(BaseModel):
         """Pydantic model configuration."""
 
         from_attributes = True
+
+
+class DocumentSearchQuery(BaseModel):
+    """Schema for document search queries."""
+
+    user_id: Optional[UUID] = None
+    """Optional user ID to filter documents by owner."""
+    labels: Optional[Dict[str, Any]] = None
+    """Optional dictionary of labels to filter by."""
+    state: Optional[str] = None
+    """Optional state to filter by."""
+    skip: int = 0
+    """Number of records to skip (for pagination)."""
+    limit: int = 100
+    """Maximum number of records to return."""
+
+    @field_validator("state")
+    @classmethod
+    def validate_state(cls, v):
+        if v is not None:
+            valid_states = {state.value for state in DocumentState}
+            if v.lower() not in valid_states:
+                raise ValueError(
+                    f'Invalid state. Must be one of: {", ".join(valid_states)}'
+                )
+            return v.lower()
+        return v
