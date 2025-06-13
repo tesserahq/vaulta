@@ -113,16 +113,9 @@ async def get_documents_by_labels(
             status_code=400, detail="Labels must contain at least one key-value pair"
         )
 
-    print(query.query.labels)
     document_service = DocumentService(db)
     documents = document_service.search(
-        query=DocumentSearchQuery(
-            labels=query.query.labels,
-            skip=skip,
-            limit=limit,
-        )
-        skip=skip,
-        limit=limit,
+        query=DocumentSearchQuery(labels=query.query.labels, skip=skip, limit=limit)
     )
 
     return documents
