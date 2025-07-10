@@ -64,11 +64,11 @@ class LocalStorageBackend(StorageBackend):
     def generate_serve_token(self, document_id: str, expires_in: int = 31536000) -> str:
         """
         Generate a signed token for serving a document publicly.
-        
+
         Args:
             document_id: The document ID to generate a token for
             expires_in: Number of seconds until the token expires (default: 1 year)
-            
+
         Returns:
             str: The signed token for serving the document
         """

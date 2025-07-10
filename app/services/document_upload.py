@@ -70,7 +70,7 @@ async def upload_document(
         url = await storage.get_url(document.id)
 
         # Generate serve URL for public access
-        if hasattr(storage, 'generate_serve_token'):
+        if hasattr(storage, "generate_serve_token"):
             serve_token = storage.generate_serve_token(str(document.id))
             serve_url = f"/serve/{serve_token}"
         else:

@@ -5,9 +5,14 @@ from fastapi.responses import JSONResponse
 
 from app.utils.auth import verify_token_dependency
 
+
 class AuthenticationMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in ["/health", "/openapi.json", "/docs"] or request.url.path.startswith("/documents/serve/"):
+        if request.url.path in [
+            "/health",
+            "/openapi.json",
+            "/docs",
+        ] or request.url.path.startswith("/documents/serve/"):
             return await call_next(request)
 
         authorization: str = request.headers.get("Authorization")

@@ -58,7 +58,7 @@ async def serve_document_via_token(
         # Get file metadata for headers
         stat_info = os.stat(file_path)
         last_modified = datetime.fromtimestamp(stat_info.st_mtime)
-        
+
         # Generate ETag based on file size and modification time
         etag = f'"{stat_info.st_size}-{int(stat_info.st_mtime)}"'
 
