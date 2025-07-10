@@ -61,6 +61,40 @@ class LocalStorageBackend(StorageBackend):
             return True
         return False
 
+    def generate_serve_token(self, document_id: str, expires_in: int = 31536000) -> str:
+        """
+        Generate a signed token for serving a document publicly.
+
+        Args:
+            document_id: The document ID to generate a token for
+            expires_in: Number of seconds until the token expires (default: 1 year)
+
+        Returns:
+            str: The signed token for serving the document
+        """
+        return self.serializer.dumps(str(document_id), salt="serve")
+
+    def verify_serve_token(self, token: str, max_age: int = 31536000) -> str:
+        """
+        Verify a signed serve token and return the document ID.
+
+        Args:
+            token: The signed serve token to verify
+            max_age: Maximum age of the token in seconds (default: 1 year)
+
+        Returns:
+            str: The document ID if the token is valid
+
+        Raises:
+            HTTPException: If the token is invalid or expired
+        """
+        try:
+            return self.serializer.loads(token, salt="serve", max_age=max_age)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid or expired serve token: {str(e)}"
+            )
+
     def verify_token(self, token: str, max_age: int = 3600) -> str:
         """
         Verify a signed token and return the document ID.

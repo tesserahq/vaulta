@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from app.models.user import User
 from app.schemas.user import UserCreate, UserUpdate
-from app.services.user import UserService
+from app.services.user_service import UserService
 
 
 @pytest.fixture

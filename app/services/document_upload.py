@@ -69,6 +69,13 @@ async def upload_document(
         # Get URL for accessing the file
         url = await storage.get_url(document.id)
 
+        # Generate serve URL for public access
+        if hasattr(storage, "generate_serve_token"):
+            serve_token = storage.generate_serve_token(str(document.id))
+            serve_url = f"/serve/{serve_token}"
+        else:
+            serve_url = url  # Fallback to regular URL if serve token not supported
+
         # Update state to completed
         document_service.update_document(
             document.id,
@@ -81,6 +88,7 @@ async def upload_document(
         return DocumentUploadResponse(
             document_id=document.id,
             url=url,
+            serve_url=serve_url,
             name=document.name,
             filename=document.filename,
             mime_type=document.mime_type,

@@ -98,6 +98,8 @@ class DocumentUploadResponse(BaseModel):
     """Unique identifier for the uploaded document."""
     url: str
     """URL for accessing the uploaded file."""
+    serve_url: str
+    """URL for serving the document publicly via token."""
     name: str
     """Human readable name for the document."""
     filename: str

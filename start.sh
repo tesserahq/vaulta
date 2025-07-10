@@ -7,4 +7,5 @@ alembic upgrade head
 echo "🚀 Starting Vaulta..."
 
 # Start FastAPI application
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+PORT=${PORT:-8000}
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
