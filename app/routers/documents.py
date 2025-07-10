@@ -13,6 +13,8 @@ from app.models.user import User
 from app.services.document import DocumentService
 import json
 from pydantic import BaseModel
+import os
+from datetime import datetime
 
 from app.utils.auth import get_current_user
 
@@ -22,6 +24,61 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 def get_storage_backend() -> StorageBackend:
     """Get the configured storage backend."""
     return StorageFactory.get_backend()
+
+
+@router.get("/serve/{token}")
+async def serve_document_via_token(
+    token: str,
+    storage: StorageBackend = Depends(get_storage_backend),
+    db: Session = Depends(get_db),
+):
+    """Serve a document via token for public access (like S3 pre-signed URLs)."""
+    if not isinstance(storage, LocalStorageBackend):
+        raise HTTPException(
+            status_code=400,
+            detail="Token-based serving is only supported with local storage",
+        )
+
+    try:
+        # Verify the token and get the document ID
+        document_id = storage.verify_serve_token(token)
+
+        document_service = DocumentService(db)
+        document = document_service.get_document(UUID(document_id))
+
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        # Get the file path
+        file_path = storage.private_dir / document_id
+
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+
+        # Get file metadata for headers
+        stat_info = os.stat(file_path)
+        last_modified = datetime.fromtimestamp(stat_info.st_mtime)
+        
+        # Generate ETag based on file size and modification time
+        etag = f'"{stat_info.st_size}-{int(stat_info.st_mtime)}"'
+
+        return FileResponse(
+            file_path,
+            media_type=str(document.mime_type),
+            filename=str(document.filename),
+            headers={
+                "Content-Disposition": f"inline; filename={document.filename}",
+                "Cache-Control": "public, max-age=31536000, immutable",
+                "ETag": etag,
+                "Last-Modified": last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT"),
+            },
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid document ID: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error serving file: {str(e)}")
 
 
 @router.get("/download/{token}")

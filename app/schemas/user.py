@@ -7,6 +7,9 @@ from datetime import datetime
 class UserBase(BaseModel):
     """Base user model containing common user attributes."""
 
+    id: Optional[UUID] = None
+    """Unique identifier for the user. Defaults to None."""
+
     email: Optional[EmailStr] = None
     """User's email address. Must be a valid email format."""
 

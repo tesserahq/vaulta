@@ -5,7 +5,7 @@ from fastapi import HTTPException, status, Request
 from fastapi.security import HTTPBearer
 
 from app.config import get_settings
-from app.services.user import UserService
+from app.services.user_service import UserService
 
 security = HTTPBearer()
 
@@ -56,7 +56,7 @@ class VerifyToken:
         # This gets the JWKS from a given URL and does processing so you can
         # use any of the keys available
         jwks_url = f"https://{self.config.oidc_domain}/.well-known/jwks.json"
-        self.jwks_client = jwt.PyJWKClient(jwks_url)
+        self.jwks_client = jwt.PyJWKClient(jwks_url, cache_keys=True)
 
     def verify(self, token: str):
         if token is None:
@@ -87,15 +87,24 @@ class VerifyToken:
         except Exception as error:
             raise UnauthorizedException(str(error))
 
-        # Call the helper function to fetch user info and handle onboarding
-        userinfo = self.fetch_user_info_from_oidc(token)
-        user = self.handle_user_onboarding(payload, userinfo)
+        # Extract user ID from JWT payload
+        user_id = payload["sub"]
 
-        return user
+        # User not in cache or cache was invalid, check database
+        user = self.user_service.get_user_by_external_id(user_id)
 
-    def fetch_user_info_from_oidc(self, access_token: str) -> dict:
+        if user:
+            # User exists in database, cache the existence
+            return user
+        else:
+            # User doesn't exist, cache the non-existence and fetch from OIDC
+            userinfo = self.fetch_user_info_from_identies(token)
+            user = self.handle_user_onboarding(payload, userinfo)
+            return user
+
+    def fetch_user_info_from_identies(self, access_token: str) -> dict:
         """Fetch user information from the oidc userinfo endpoint."""
-        userinfo_url = f"https://{self.config.oidc_domain}/userinfo"
+        userinfo_url = f"{self.config.identies_host}/userinfo"
         headers = {"Authorization": f"Bearer {access_token}"}
         response = requests.get(userinfo_url, headers=headers)
 
@@ -109,26 +118,18 @@ class VerifyToken:
 
     def handle_user_onboarding(self, payload: dict, userinfo: dict):
         """Onboard the user locally using the userinfo data."""
-        user_id = payload["sub"]
-        email = userinfo.get("email")
-        name = userinfo.get("name", "Unkown Unkown").split(" ")
-        first_name = name[0]
-        last_name = name[1]
-        avatar_url = userinfo.get("picture")
+        external_id = payload["sub"]
 
-        # Check if the user exists locally
-        user = self.user_service.get_user_by_external_id(user_id)
-
-        if not user:
-            # Onboard the user locally
-            user = self.user_service.onboard_user(
-                UserOnboard(
-                    external_id=user_id,
-                    email=email,
-                    first_name=first_name,
-                    last_name=last_name,
-                    avatar_url=avatar_url,
-                )
+        # Onboard the user locally
+        user = self.user_service.onboard_user(
+            UserOnboard(
+                external_id=external_id,
+                id=userinfo["id"],
+                email=userinfo["email"],
+                first_name=userinfo["first_name"],
+                last_name=userinfo["last_name"],
+                avatar_url=userinfo["avatar_url"],
             )
+        )
 
         return user

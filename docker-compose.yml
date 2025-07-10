@@ -1,0 +1,43 @@
+services:
+  # api:
+  #   build: .
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - DATABASE_URL=postgresql://postgres:postgres@db:5432/estate_buddy
+  #   depends_on:
+  #     - db
+  #   volumes:
+  #     - .:/app
+  #   command: ./start.sh
+
+  db:
+    image: postgres:17
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=estate_buddy
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  identies-api:
+    image: mustela/identies:main
+    pull_policy: always
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/identies
+      - OIDC_DOMAIN=dev-si3yygt34d0fk7hc.us.auth0.com
+      - OIDC_API_AUDIENCE=https://estate-buddy.com
+      - OIDC_ISSUER=https://dev-si3yygt34d0fk7hc.us.auth0.com/
+      - OIDC_ALGORITHMS=RS256
+      - OTEL_SERVICE_NAME=identies-api
+      - OTEL_ENABLED=false
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+    depends_on:
+      - db
+    ports:
+      - "8001:8000"
+
+volumes:
+  postgres_data:
