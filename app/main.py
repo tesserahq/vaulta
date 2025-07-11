@@ -6,8 +6,8 @@ from app.config import get_settings
 import rollbar
 from rollbar.logger import RollbarHandler
 
-from .routers import documents
-from .routers import clients_router
+from app.routers.assets import router as assets_router
+from app.routers.clients import router as clients_router
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from app.telemetry import setup_tracing
 from app.exceptions.handlers import register_exception_handlers
@@ -56,7 +56,7 @@ def create_app(testing: bool = False, auth_middleware=None) -> FastAPI:
         allow_headers=["*"],  # Permitir todos los headers
     )
 
-    app.include_router(documents.router)
+    app.include_router(assets_router)
     app.include_router(clients_router)
 
     register_exception_handlers(app)

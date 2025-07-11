@@ -21,9 +21,13 @@ class Settings(BaseSettings):
         default="https://identies.estate-buddy.com",
         json_schema_extra={"env": "IDENTIES_HOST"},
     )
-    secret_key: str = Field(
-        ..., json_schema_extra={"env": "SECRET_KEY"}
-    )  # Required field
+    # Master secret key used for signing URLs and generating secure tokens
+    # This key is used by the storage backend to create signed URLs for secure file access
+    master_secret_key: str = Field(
+        ...,
+        description="Master secret key used for signing URLs and generating secure tokens",
+        json_schema_extra={"env": "MASTER_SECRET_KEY"},
+    )  # Required field for URL signing
     rollbar_access_token: Optional[str] = Field(
         default=None, json_schema_extra={"env": "ROLLBAR_ACCESS_TOKEN"}
     )  # Optional field

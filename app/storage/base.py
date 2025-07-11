@@ -6,7 +6,7 @@ class StorageBackend(ABC):
     """Abstract base class for storage backends."""
 
     @abstractmethod
-    async def save(self, document_id: str, file: UploadFile) -> str:
+    async def save(self, asset_id: str, file: UploadFile) -> str:
         """
         Save a file to storage.
 
@@ -21,12 +21,12 @@ class StorageBackend(ABC):
         pass
 
     @abstractmethod
-    async def get_url(self, document_id: str) -> str:
+    async def get_url(self, asset_id: str) -> str:
         """
         Get a URL for accessing the file.
 
         Args:
-            document_id: The identifier/key of the file
+            asset_id: The identifier/key of the file
             expires_in: Number of seconds until the URL expires (for private files)
 
         Returns:
@@ -50,14 +50,14 @@ class StorageBackend(ABC):
     @abstractmethod
     def verify_token(self, token: str, max_age: int = 3600) -> str:
         """
-        Verify a signed token and return the document ID.
+        Verify a signed token and return the file ID.
 
         Args:
             token: The signed token to verify
             max_age: Maximum age of the token in seconds
 
         Returns:
-            str: The document ID if the token is valid
+            str: The file ID if the token is valid
 
         Raises:
             Exception: If the token is invalid or expired

@@ -1,6 +1,4 @@
-import pytest
-from uuid import uuid4
-from datetime import datetime, timezone
+from datetime import datetime
 from app.services.client_service import ClientService
 from app.schemas.client import ClientCreate, ClientUpdate
 

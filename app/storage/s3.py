@@ -37,7 +37,7 @@ class S3StorageBackend(StorageBackend):
             extra_args = {"ACL": "public-read"} if is_public else {}
 
             # Upload the file
-            self.s3.upload_fileobj(
+            self.s3.upload_assetobj(
                 file.file,
                 self.bucket_name,
                 filename,
