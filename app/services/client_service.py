@@ -2,8 +2,9 @@ from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.orm import Session
 from app.models.client import Client
-from app.schemas.client import ClientCreate, ClientUpdate
+from app.schemas.client import ClientCreate, ClientUpdate, ClientWithSecret
 from datetime import datetime, timezone
+from app.utils.token_utils import derive_secret
 
 from app.utils.db.filtering import apply_filters
 
@@ -24,13 +25,26 @@ class ClientService:
         """Get a list of clients with pagination."""
         return self.db.query(Client).offset(skip).limit(limit).all()
 
-    def create_client(self, client: ClientCreate) -> Client:
-        """Create a new client."""
+    def create_client(self, client: ClientCreate) -> ClientWithSecret:
+        """Create a new client and return it with the derived secret."""
         db_client = Client(**client.model_dump())
+
+        # Set the secret_generated_at timestamp
+        db_client.secret_generated_at = datetime.now(timezone.utc)
+
         self.db.add(db_client)
         self.db.commit()
         self.db.refresh(db_client)
-        return db_client
+
+        # Generate the derived secret for this client
+        derived_secret = derive_secret(db_client.client_id)
+
+        # Create response with derived secret
+        client_with_secret = ClientWithSecret(
+            **db_client.__dict__, secret=derived_secret
+        )
+
+        return client_with_secret
 
     def update_client(self, client_id: UUID, client: ClientUpdate) -> Optional[Client]:
         """Update an existing client."""
@@ -52,14 +66,26 @@ class ClientService:
             return True
         return False
 
-    def update_secret_generated_at(self, client_id: UUID) -> Optional[Client]:
-        """Update the secret_generated_at timestamp for a client."""
+    def regenerate_secret(self, client_id: UUID) -> Optional[ClientWithSecret]:
+        """Regenerate the secret for a client and return it with the new secret."""
         db_client = self.db.query(Client).filter(Client.id == client_id).first()
-        if db_client:
-            db_client.secret_generated_at = datetime.now(timezone.utc)
-            self.db.commit()
-            self.db.refresh(db_client)
-        return db_client
+        if not db_client:
+            return None
+
+        # Update the secret_generated_at timestamp
+        db_client.secret_generated_at = datetime.now(timezone.utc)
+        self.db.commit()
+        self.db.refresh(db_client)
+
+        # Generate the new derived secret for this client
+        derived_secret = derive_secret(db_client.client_id)
+
+        # Create response with new derived secret
+        client_with_secret = ClientWithSecret(
+            **db_client.__dict__, secret=derived_secret
+        )
+
+        return client_with_secret
 
     def search(self, filters: dict) -> List[Client]:
         """

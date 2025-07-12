@@ -2,6 +2,8 @@ import hashlib
 import hmac
 from itsdangerous.url_safe import URLSafeTimedSerializer
 from fastapi import HTTPException
+from typing import Optional
+from app.config import get_settings
 
 
 def generate_token(data: str, secret_key: str, salt: str, expires_in: int) -> str:
@@ -30,16 +32,47 @@ def verify_token(token: str, secret_key: str, salt: str, max_age: int) -> str:
         raise HTTPException(status_code=403, detail="Invalid or expired token")
 
 
-def derive_service_secret(client_id: str, master_secret: str) -> str:
+def derive_secret(client_id: str, master_secret: Optional[str] = None) -> str:
+    """
+    Derive a service-specific secret from a master secret and client ID.
+
+    Args:
+        client_id: The client identifier
+        master_secret: The master secret key. If not provided, uses the one from config.
+
+    Returns:
+        str: The derived service secret
+    """
+    if master_secret is None:
+        settings = get_settings()
+        master_secret = settings.master_secret_key
+
     return hmac.new(
         master_secret.encode(), client_id.encode(), hashlib.sha256
     ).hexdigest()
 
 
 def generate_token_with_service(
-    data: str, client_id: str, master_secret: str, salt: str, expires_in: int
+    data: str,
+    client_id: str,
+    master_secret: Optional[str] = None,
+    salt: str = "",
+    expires_in: int = 3600,
 ) -> str:
-    child_secret = derive_service_secret(client_id, master_secret)
+    """
+    Generate a token with service-specific secret derivation.
+
+    Args:
+        data: The data to encode in the token
+        client_id: The client identifier
+        master_secret: The master secret key. If not provided, uses the one from config.
+        salt: The salt for token generation
+        expires_in: Token expiration time in seconds
+
+    Returns:
+        str: The generated token
+    """
+    child_secret = derive_secret(client_id, master_secret)
     return generate_token(
         data=f"{client_id}:{data}",
         secret_key=child_secret,
@@ -48,12 +81,15 @@ def generate_token_with_service(
     )
 
 
-def verify_serve_token(token: str, master_secret: str, max_age: int = 31536000) -> str:
+def verify_serve_token(
+    token: str, master_secret: Optional[str] = None, max_age: int = 31536000
+) -> str:
     """
     Verify a signed serve token and return the file ID.
 
     Args:
         token: The signed serve token to verify
+        master_secret: The master secret key. If not provided, uses the one from config.
         max_age: Maximum age of the token in seconds (default: 1 year)
 
     Returns:
@@ -68,14 +104,29 @@ def verify_serve_token(token: str, master_secret: str, max_age: int = 31536000) 
 
 
 def verify_token_with_service(
-    token: str, master_secret: str, salt: str, max_age: int
+    token: str, master_secret: Optional[str] = None, salt: str = "", max_age: int = 3600
 ) -> str:
+    """
+    Verify a token with service-specific secret derivation.
+
+    Args:
+        token: The token to verify
+        master_secret: The master secret key. If not provided, uses the one from config.
+        salt: The salt for token verification
+        max_age: Maximum age of the token in seconds
+
+    Returns:
+        str: The asset ID if the token is valid
+
+    Raises:
+        HTTPException: If the token is invalid or expired
+    """
     # Decode token just to extract client_id prefix before verifying
     from app.models.client import Client
 
     for service in Client.all():  # or another way to get known clients
         try:
-            child_secret = derive_service_secret(service.client_id, master_secret)
+            child_secret = derive_secret(service.client_id, master_secret)
             raw = verify_token(token, child_secret, salt=salt, max_age=max_age)
             # Ensure the payload has the format 'client_id:asset_id'
             client_id, asset_id = raw.split(":", 1)
@@ -87,7 +138,10 @@ def verify_token_with_service(
 
 
 def generate_serve_token(
-    asset_id: str, client_id: str, master_secret: str, expires_in: int = 31536000
+    asset_id: str,
+    client_id: str,
+    master_secret: Optional[str] = None,
+    expires_in: int = 31536000,
 ) -> str:
     """
     Generate a signed token for serving a file publicly.
@@ -95,6 +149,7 @@ def generate_serve_token(
     Args:
         asset_id: The file ID to generate a token for
         client_id: The service identifier
+        master_secret: The master secret key. If not provided, uses the one from config.
         expires_in: Number of seconds until the token expires (default: 1 year)
 
     Returns:

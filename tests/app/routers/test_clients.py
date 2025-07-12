@@ -8,19 +8,8 @@ class TestClientRouter:
         assert response.status_code == 200
         assert response.json() == []
 
-    def test_get_clients_with_data(self, client, db):
+    def test_get_clients_with_data(self, client, setup_multiple_clients):
         """Test getting clients with pagination."""
-        # Create test clients
-        client_data = [
-            {"name": "Test Client 1", "client_id": "test-client-1"},
-            {"name": "Test Client 2", "client_id": "test-client-2"},
-            {"name": "Test Client 3", "client_id": "test-client-3"},
-        ]
-
-        for data in client_data:
-            db_client = Client(**data)
-            db.add(db_client)
-        db.commit()
 
         # Test default pagination
         response = client.get("/clients")
@@ -51,39 +40,32 @@ class TestClientRouter:
         assert created_client["name"] == "New Test Client"
         assert created_client["client_id"] == "new-test-client"
         assert created_client["id"] is not None
-        assert created_client["secret_generated_at"] is None
+        assert created_client["secret_generated_at"] is not None
         assert created_client["created_at"] is not None
         assert created_client["updated_at"] is not None
+        assert created_client["secret"] is not None
+        assert isinstance(created_client["secret"], str)
+        assert len(created_client["secret"]) > 0
 
-    def test_create_client_duplicate_client_id(self, client, db):
+    def test_create_client_duplicate_client_id(self, client, setup_client):
         """Test creating a client with duplicate client_id."""
-        # Create first client
-        client_data = {"name": "First Client", "client_id": "duplicate-id"}
-        response = client.post("/clients", json=client_data)
-        assert response.status_code == 200
-
         # Try to create second client with same client_id
-        client_data2 = {"name": "Second Client", "client_id": "duplicate-id"}
+        client_data2 = {"name": "Second Client", "client_id": setup_client.client_id}
         response = client.post("/clients", json=client_data2)
         assert response.status_code == 400
         assert "Client ID already exists" in response.json()["detail"]
 
-    def test_get_client_by_uuid(self, client, db):
+    def test_get_client_by_uuid(self, client, setup_client):
         """Test getting a client by UUID."""
-        # Create a test client
-        client_data = {"name": "Test Client", "client_id": "test-client-uuid"}
-        db_client = Client(**client_data)
-        db.add(db_client)
-        db.commit()
-        db.refresh(db_client)
 
+        db_client = setup_client
         response = client.get(f"/clients/{db_client.id}")
         assert response.status_code == 200
 
         retrieved_client = response.json()
         assert retrieved_client["id"] == str(db_client.id)
-        assert retrieved_client["name"] == "Test Client"
-        assert retrieved_client["client_id"] == "test-client-uuid"
+        assert retrieved_client["name"] == db_client.name
+        assert retrieved_client["client_id"] == db_client.client_id
 
     def test_get_client_by_uuid_not_found(self, client):
         """Test getting a client by UUID that doesn't exist."""
@@ -95,20 +77,15 @@ class TestClientRouter:
         assert response.status_code == 404
         assert "Client not found" in response.json()["detail"]
 
-    def test_get_client_by_client_id(self, client, db):
+    def test_get_client_by_client_id(self, client, setup_client):
         """Test getting a client by client_id (slug)."""
-        # Create a test client
-        client_data = {"name": "Test Client", "client_id": "test-client-slug"}
-        db_client = Client(**client_data)
-        db.add(db_client)
-        db.commit()
-
-        response = client.get("/clients/by-client-id/test-client-slug")
+        db_client = setup_client
+        response = client.get(f"/clients/by-client-id/{db_client.client_id}")
         assert response.status_code == 200
 
         retrieved_client = response.json()
-        assert retrieved_client["name"] == "Test Client"
-        assert retrieved_client["client_id"] == "test-client-slug"
+        assert retrieved_client["name"] == db_client.name
+        assert retrieved_client["client_id"] == db_client.client_id
 
     def test_get_client_by_client_id_not_found(self, client):
         """Test getting a client by client_id that doesn't exist."""
@@ -116,14 +93,9 @@ class TestClientRouter:
         assert response.status_code == 404
         assert "Client not found" in response.json()["detail"]
 
-    def test_update_client_success(self, client, db):
+    def test_update_client_success(self, client, setup_client):
         """Test updating a client successfully."""
-        # Create a test client
-        client_data = {"name": "Original Name", "client_id": "original-id"}
-        db_client = Client(**client_data)
-        db.add(db_client)
-        db.commit()
-        db.refresh(db_client)
+        db_client = setup_client
 
         # Update the client
         update_data = {"name": "Updated Name"}
@@ -133,7 +105,9 @@ class TestClientRouter:
 
         updated_client = response.json()
         assert updated_client["name"] == "Updated Name"
-        assert updated_client["client_id"] == "original-id"  # Should remain unchanged
+        assert (
+            updated_client["client_id"] == db_client.client_id
+        )  # Should remain unchanged
 
     def test_update_client_not_found(self, client):
         """Test updating a client that doesn't exist."""
@@ -146,34 +120,22 @@ class TestClientRouter:
         assert response.status_code == 404
         assert "Client not found" in response.json()["detail"]
 
-    def test_update_client_duplicate_client_id(self, client, db):
+    def test_update_client_duplicate_client_id(
+        self, client, setup_client, setup_another_client
+    ):
         """Test updating a client with a client_id that already exists."""
-        # Create two test clients
-        client1_data = {"name": "Client 1", "client_id": "client-1"}
-        client2_data = {"name": "Client 2", "client_id": "client-2"}
-
-        db_client1 = Client(**client1_data)
-        db_client2 = Client(**client2_data)
-        db.add(db_client1)
-        db.add(db_client2)
-        db.commit()
-        db.refresh(db_client1)
-        db.refresh(db_client2)
+        db_client1 = setup_client
+        db_client2 = setup_another_client
 
         # Try to update client1 with client2's client_id
-        update_data = {"client_id": "client-2"}
-        response = client.put(f"/clients/{db_client1.id}", json=update_data)
+        update_data = {"client_id": db_client1.client_id}
+        response = client.put(f"/clients/{db_client2.id}", json=update_data)
         assert response.status_code == 400
         assert "Client ID already exists" in response.json()["detail"]
 
-    def test_delete_client_success(self, client, db):
+    def test_delete_client_success(self, client, setup_client):
         """Test deleting a client successfully."""
-        # Create a test client
-        client_data = {"name": "Client to Delete", "client_id": "client-to-delete"}
-        db_client = Client(**client_data)
-        db.add(db_client)
-        db.commit()
-        db.refresh(db_client)
+        db_client = setup_client
 
         response = client.delete(f"/clients/{db_client.id}")
         assert response.status_code == 200
@@ -190,36 +152,6 @@ class TestClientRouter:
         fake_uuid = uuid.uuid4()
 
         response = client.delete(f"/clients/{fake_uuid}")
-        assert response.status_code == 404
-        assert "Client not found" in response.json()["detail"]
-
-    def test_update_secret_timestamp_success(self, client, db):
-        """Test updating the secret_generated_at timestamp."""
-        # Create a test client
-        client_data = {"name": "Test Client", "client_id": "test-client-secret"}
-        db_client = Client(**client_data)
-        db.add(db_client)
-        db.commit()
-        db.refresh(db_client)
-
-        # Initially secret_generated_at should be None
-        assert db_client.secret_generated_at is None
-
-        response = client.post(f"/clients/{db_client.id}/update-secret")
-        assert response.status_code == 200
-        assert response.json()["message"] == "Secret timestamp updated successfully"
-
-        # Verify the timestamp was updated
-        db.refresh(db_client)
-        assert db_client.secret_generated_at is not None
-
-    def test_update_secret_timestamp_not_found(self, client):
-        """Test updating secret timestamp for a client that doesn't exist."""
-        import uuid
-
-        fake_uuid = uuid.uuid4()
-
-        response = client.post(f"/clients/{fake_uuid}/update-secret")
         assert response.status_code == 404
         assert "Client not found" in response.json()["detail"]
 
@@ -247,3 +179,29 @@ class TestClientRouter:
 
         response = client.get("/clients?limit=1001")
         assert response.status_code == 422  # Validation error
+
+    def test_regenerate_secret_success(self, client, setup_client):
+        """Test regenerating a client's secret successfully."""
+        db_client = setup_client
+
+        response = client.post(f"/clients/{db_client.id}/regenerate-secret")
+        assert response.status_code == 200
+
+        regenerated_client = response.json()
+        assert regenerated_client["id"] == str(db_client.id)
+        assert regenerated_client["name"] == db_client.name
+        assert regenerated_client["client_id"] == db_client.client_id
+        assert regenerated_client["secret"] is not None
+        assert isinstance(regenerated_client["secret"], str)
+        assert len(regenerated_client["secret"]) > 0
+        assert regenerated_client["secret_generated_at"] is not None
+
+    def test_regenerate_secret_not_found(self, client):
+        """Test regenerating secret for a client that doesn't exist."""
+        import uuid
+
+        fake_uuid = uuid.uuid4()
+
+        response = client.post(f"/clients/{fake_uuid}/regenerate-secret")
+        assert response.status_code == 404
+        assert "Client not found" in response.json()["detail"]
