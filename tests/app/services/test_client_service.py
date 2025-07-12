@@ -1,6 +1,6 @@
 from datetime import datetime
 from app.services.client_service import ClientService
-from app.schemas.client import ClientCreate, ClientUpdate
+from app.schemas.client import ClientCreate, ClientUpdate, ClientWithSecret
 
 
 class TestClientService:
@@ -14,9 +14,12 @@ class TestClientService:
         assert client.id is not None
         assert client.name == "Test Client"
         assert client.client_id == "test-client-123"
-        assert client.secret_generated_at is None
+        assert client.secret_generated_at is not None
         assert client.created_at is not None
         assert client.updated_at is not None
+        assert client.secret is not None
+        assert isinstance(client.secret, str)
+        assert len(client.secret) > 0
 
     def test_get_client(self, db):
         """Test getting a client by UUID."""
@@ -70,19 +73,38 @@ class TestClientService:
         retrieved_client = service.get_client(created_client.id)
         assert retrieved_client is None
 
-    def test_update_secret_generated_at(self, db):
-        """Test updating the secret_generated_at timestamp."""
+    def test_regenerate_secret(self, db):
+        """Test regenerating a client's secret."""
         service = ClientService(db)
-        client_data = ClientCreate(name="Test Client", client_id="test-client-secret")
+        client_data = ClientCreate(
+            name="Test Client", client_id="test-client-regenerate"
+        )
 
+        # Create a client
         created_client = service.create_client(client_data)
-        assert created_client.secret_generated_at is None
+        original_secret = created_client.secret
+        original_timestamp = created_client.secret_generated_at
 
-        updated_client = service.update_secret_generated_at(created_client.id)
+        # Regenerate the secret
+        regenerated_client = service.regenerate_secret(created_client.id)
 
-        assert updated_client is not None
-        assert updated_client.secret_generated_at is not None
-        assert isinstance(updated_client.secret_generated_at, datetime)
+        assert regenerated_client is not None
+        assert regenerated_client.id == created_client.id
+        assert regenerated_client.secret is not None
+        assert isinstance(regenerated_client.secret, str)
+        assert len(regenerated_client.secret) > 0
+        assert regenerated_client.secret_generated_at is not None
+        assert regenerated_client.secret_generated_at > original_timestamp
+
+    def test_regenerate_secret_client_not_found(self, db):
+        """Test regenerating secret for a non-existent client."""
+        service = ClientService(db)
+        import uuid
+
+        fake_uuid = uuid.uuid4()
+        result = service.regenerate_secret(fake_uuid)
+
+        assert result is None
 
     def test_get_clients_with_pagination(self, db):
         """Test getting clients with pagination."""

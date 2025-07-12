@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.services.client_service import ClientService
-from app.schemas.client import Client, ClientCreate, ClientUpdate
+from app.schemas.client import Client, ClientCreate, ClientUpdate, ClientWithSecret
 from app.models.user import User
 from app.utils.auth import get_current_user
 
@@ -54,13 +54,13 @@ async def get_client_by_client_id(
     return client
 
 
-@router.post("", response_model=Client)
+@router.post("", response_model=ClientWithSecret)
 async def create_client(
     client: ClientCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Create a new client."""
+    """Create a new client and return it with the derived secret."""
     client_service = ClientService(db)
 
     # Check if client_id already exists
@@ -110,15 +110,15 @@ async def delete_client(
     return {"message": "Client deleted successfully"}
 
 
-@router.post("/{client_id}/update-secret")
-async def update_client_secret_timestamp(
+@router.post("/{client_id}/regenerate-secret", response_model=ClientWithSecret)
+async def regenerate_client_secret(
     client_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Update the secret_generated_at timestamp for a client."""
+    """Regenerate the secret for a client and return the new secret."""
     client_service = ClientService(db)
-    client = client_service.update_secret_generated_at(client_id)
+    client = client_service.regenerate_secret(client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-    return {"message": "Secret timestamp updated successfully"}
+    return client

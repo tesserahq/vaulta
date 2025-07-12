@@ -61,3 +61,10 @@ class Client(ClientInDB):
     """Schema for client data returned in API responses. Inherits all fields from ClientInDB."""
 
     pass
+
+
+class ClientWithSecret(ClientInDB):
+    """Schema for client data returned when creating a new client, includes the derived secret."""
+
+    secret: str
+    """The derived secret for this client."""

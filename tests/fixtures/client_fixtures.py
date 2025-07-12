@@ -35,6 +35,22 @@ def setup_client(db, faker):
 
 
 @pytest.fixture(scope="function")
+def setup_another_client(db, faker):
+    """Create a test client for use in tests."""
+    client_data = {
+        "name": faker.company(),
+        "client_id": faker.slug(),
+    }
+
+    another_client = Client(**client_data)
+    db.add(another_client)
+    db.commit()
+    db.refresh(another_client)
+
+    return another_client
+
+
+@pytest.fixture(scope="function")
 def setup_multiple_clients(db, faker):
     """Create multiple test clients for use in tests."""
     clients = []
