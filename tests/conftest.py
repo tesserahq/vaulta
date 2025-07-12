@@ -12,7 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 pytest_plugins = [
     "tests.fixtures.user_fixtures",
-    "tests.fixtures.document_fixtures",
+    "tests.fixtures.asset_fixtures",
     "tests.fixtures.client_fixtures",
 ]
 
@@ -25,7 +25,7 @@ def setup_test_environment():
     # Set it in the environment
     import os
 
-    os.environ["SECRET_KEY"] = "test"
+    os.environ["MASTER_SECRET_KEY"] = "test"
     # Get settings with the new key
     settings = get_settings()
     yield settings

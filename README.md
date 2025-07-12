@@ -17,7 +17,7 @@
 
 ## Use Cases
 
-- Uploading and accessing user documents securely
+- Uploading and accessing user files securely
 - Serving private media through signed links
 - Reusable storage backend for microservices
 

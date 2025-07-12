@@ -38,9 +38,7 @@ class User(Base, TimestampMixin):
     external_id = Column(String, nullable=True)
 
     # Relationships
-    documents = relationship(
-        "Document", back_populates="user", cascade="all, delete-orphan"
-    )
+    assets = relationship("Asset", back_populates="user", cascade="all, delete-orphan")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

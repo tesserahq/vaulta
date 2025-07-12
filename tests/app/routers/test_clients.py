@@ -1,7 +1,4 @@
-import pytest
-from fastapi.testclient import TestClient
 from app.models.client import Client
-from app.schemas.client import ClientCreate
 
 
 class TestClientRouter:

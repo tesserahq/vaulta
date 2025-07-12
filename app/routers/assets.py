@@ -7,10 +7,10 @@ from app.storage.local import LocalStorageBackend
 from uuid import UUID
 from sqlalchemy.orm import Session
 from app.db import get_db
-from app.services.document_upload import upload_document
-from app.schemas.document import DocumentSearchQuery, DocumentUploadResponse, Document
+from app.services.asset_upload import upload_asset
+from app.schemas.asset import AssetSearchQuery, AssetUploadResponse, Asset
 from app.models.user import User
-from app.services.document import DocumentService
+from app.services.asset_service import AssetService
 import json
 from pydantic import BaseModel
 import os
@@ -18,7 +18,7 @@ from datetime import datetime
 
 from app.utils.auth import get_current_user
 
-router = APIRouter(prefix="/documents", tags=["documents"])
+router = APIRouter(prefix="/assets", tags=["assets"])
 
 
 def get_storage_backend() -> StorageBackend:
@@ -32,7 +32,7 @@ async def serve_document_via_token(
     storage: StorageBackend = Depends(get_storage_backend),
     db: Session = Depends(get_db),
 ):
-    """Serve a document via token for public access (like S3 pre-signed URLs)."""
+    """Serve a file via token for public access (like S3 pre-signed URLs)."""
     if not isinstance(storage, LocalStorageBackend):
         raise HTTPException(
             status_code=400,
@@ -40,20 +40,20 @@ async def serve_document_via_token(
         )
 
     try:
-        # Verify the token and get the document ID
-        document_id = storage.verify_serve_token(token)
+        # Verify the token and get the file ID
+        asset_id = storage.verify_serve_token(token)
 
-        document_service = DocumentService(db)
-        document = document_service.get_document(UUID(document_id))
+        asset_service = AssetService(db)
+        asset = asset_service.get_asset(UUID(asset_id))
 
-        if not document:
-            raise HTTPException(status_code=404, detail="Document not found")
+        if not asset:
+            raise HTTPException(status_code=404, detail="Asset not found")
 
         # Get the file path
-        file_path = storage.private_dir / document_id
+        file_path = storage.private_dir / asset_id
 
         if not file_path.exists():
-            raise HTTPException(status_code=404, detail="File not found")
+            raise HTTPException(status_code=404, detail="Asset not found")
 
         # Get file metadata for headers
         stat_info = os.stat(file_path)
@@ -64,21 +64,21 @@ async def serve_document_via_token(
 
         return FileResponse(
             file_path,
-            media_type=str(document.mime_type),
-            filename=str(document.filename),
+            media_type=str(asset.mime_type),
+            filename=str(asset.filename),
             headers={
-                "Content-Disposition": f"inline; filename={document.filename}",
+                "Content-Disposition": f"inline; filename={asset.filename}",
                 "Cache-Control": "public, max-age=31536000, immutable",
                 "ETag": etag,
                 "Last-Modified": last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT"),
             },
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid document ID: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid asset ID: {str(e)}")
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error serving file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error serving asset: {str(e)}")
 
 
 @router.get("/download/{token}")
@@ -95,48 +95,50 @@ async def download_document(
         )
 
     try:
-        # Verify the token and get the document ID
-        document_id = storage.verify_token(token)
+        # Verify the token and get the file ID
+        asset_id = storage.verify_token(token)
 
-        document_service = DocumentService(db)
-        document = document_service.get_document(UUID(document_id))
+        asset_service = AssetService(db)
+        asset = asset_service.get_asset(UUID(asset_id))
 
-        if not document:
-            raise HTTPException(status_code=404, detail="Document not found")
+        if not asset:
+            raise HTTPException(status_code=404, detail="Asset not found")
 
         # Get the file path
-        file_path = storage.private_dir / document_id
+        file_path = storage.private_dir / asset_id
 
         if not file_path.exists():
-            raise HTTPException(status_code=404, detail="File not found")
+            raise HTTPException(status_code=404, detail="Asset not found")
 
         return FileResponse(
             file_path,
-            media_type=str(document.mime_type),
-            filename=str(document.filename),
+            media_type=str(asset.mime_type),
+            filename=str(asset.filename),
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid document ID: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Invalid asset ID: {str(e)}")
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error downloading file: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Error downloading asset: {str(e)}"
+        )
 
 
 class DocumentLabels(BaseModel):
-    """Labels for document search."""
+    """Labels for asset search."""
 
     labels: Dict[str, Any]
 
 
 class DocumentQuery(BaseModel):
-    """Query parameters for document search."""
+    """Query parameters for asset search."""
 
     query: DocumentLabels
 
 
-@router.post("/search", response_model=List[Document])
-async def get_documents_by_labels(
+@router.post("/search", response_model=List[Asset])
+async def get_assets_by_labels(
     query: DocumentQuery,
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(
@@ -146,11 +148,11 @@ async def get_documents_by_labels(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Get documents based on query parameters.
+    Get assets based on query parameters.
 
     The request body should contain search criteria.
     Currently supported criteria:
-    - query.labels: Dictionary of labels to search for. Documents must match ALL specified labels.
+    - query.labels: Dictionary of labels to search for. Assets must match ALL specified labels.
 
     Example request body:
     {
@@ -163,23 +165,23 @@ async def get_documents_by_labels(
         }
     }
 
-    Documents must have ALL the specified labels with matching values to be included in the results.
+    Assets must have ALL the specified labels with matching values to be included in the results.
     """
     if not query.query.labels:
         raise HTTPException(
             status_code=400, detail="Labels must contain at least one key-value pair"
         )
 
-    document_service = DocumentService(db)
-    documents = document_service.search(
-        query=DocumentSearchQuery(labels=query.query.labels, skip=skip, limit=limit)
+    asset_service = AssetService(db)
+    assets = asset_service.search(
+        query=AssetSearchQuery(labels=query.query.labels, skip=skip, limit=limit)
     )
 
-    return documents
+    return assets
 
 
-@router.post("", response_model=DocumentUploadResponse)
-async def upload_document_endpoint(
+@router.post("", response_model=AssetUploadResponse)
+async def upload_asset_endpoint(
     file: UploadFile = File(...),
     name: Optional[str] = Form(None),
     labels: Optional[str] = Form(None),
@@ -187,16 +189,16 @@ async def upload_document_endpoint(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Upload a document with optional name and labels.
+    Upload an asset with optional name and labels.
     
     This endpoint accepts multipart form data with the following fields:
-    - file: The file to upload (required)
-    - name: Optional custom name for the document
+    - file: The asset to upload (required)
+    - name: Optional custom name for the asset
     - labels: Optional JSON string containing a dictionary of labels
     
     Example using curl:
     ```bash
-    curl -X POST "http://localhost:8000/documents" \
+    curl -X POST "http://localhost:8000/assets" \
       -H "Authorization: Bearer YOUR_TOKEN" \
       -F "file=@/path/to/file.pdf" \
       -F "name=Custom Name" \
@@ -214,7 +216,7 @@ async def upload_document_endpoint(
     }
     
     response = requests.post(
-        'http://localhost:8000/documents',
+        'http://localhost:8000/assets',
         headers={'Authorization': f'Bearer {token}'},
         files=files,
         data=data
@@ -237,12 +239,12 @@ async def upload_document_endpoint(
                 status_code=400, detail=f"Error parsing labels: {str(e)}"
             )
 
-    document_service = DocumentService(db)
+    asset_service = AssetService(db)
     storage = StorageFactory.get_backend()
-    return await upload_document(
+    return await upload_asset(
         file=file,
         user_id=UUID(str(current_user.id)),
-        document_service=document_service,
+        asset_service=asset_service,
         storage=storage,
         name=name,
         labels=parsed_labels,

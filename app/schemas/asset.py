@@ -2,14 +2,14 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime
-from app.constants.document import DocumentState
+from app.constants.asset import AssetState
 
 
-class DocumentBase(BaseModel):
-    """Base document model containing common document attributes."""
+class AssetBase(BaseModel):
+    """Base file model containing common file attributes."""
 
     name: str
-    """Human readable name for the document."""
+    """Human readable name for the file."""
     filename: str
     """Original filename."""
     mime_type: str
@@ -24,7 +24,7 @@ class DocumentBase(BaseModel):
     @field_validator("state")
     @classmethod
     def validate_state(cls, v):
-        valid_states = {state.value for state in DocumentState}
+        valid_states = {state.value for state in AssetState}
         if v.lower() not in valid_states:
             raise ValueError(
                 f'Invalid state. Must be one of: {", ".join(valid_states)}'
@@ -32,19 +32,19 @@ class DocumentBase(BaseModel):
         return v.lower()
 
 
-class DocumentCreate(DocumentBase):
-    """Schema for creating a new document."""
+class AssetCreate(AssetBase):
+    """Schema for creating a new asset."""
 
     pass
 
 
-class DocumentUpdate(BaseModel):
-    """Schema for updating an existing document. All fields are optional."""
+class AssetUpdate(BaseModel):
+    """Schema for updating an existing file. All fields are optional."""
 
     name: Optional[str] = None
-    """Updated document name."""
+    """Updated file name."""
     labels: Optional[Dict[str, Any]] = None
-    """Updated document labels."""
+    """Updated file labels."""
     state: Optional[str] = None
     state_message: Optional[str] = None
 
@@ -52,7 +52,7 @@ class DocumentUpdate(BaseModel):
     @classmethod
     def validate_state(cls, v):
         if v is not None:
-            valid_states = {state.value for state in DocumentState}
+            valid_states = {state.value for state in AssetState}
             if v.lower() not in valid_states:
                 raise ValueError(
                     f'Invalid state. Must be one of: {", ".join(valid_states)}'
@@ -61,17 +61,17 @@ class DocumentUpdate(BaseModel):
         return v
 
 
-class DocumentInDB(DocumentBase):
-    """Schema representing a document as stored in the database."""
+class AssetInDB(AssetBase):
+    """Schema representing a file as stored in the database."""
 
     id: UUID
-    """Unique identifier for the document."""
+    """Unique identifier for the file."""
     user_id: UUID
-    """ID of the user who owns the document."""
+    """ID of the user who owns the file."""
     created_at: datetime
-    """Timestamp when the document was created."""
+    """Timestamp when the file was created."""
     updated_at: datetime
-    """Timestamp when the document was last updated."""
+    """Timestamp when the file was last updated."""
 
     class Config:
         """Pydantic model configuration."""
@@ -79,8 +79,8 @@ class DocumentInDB(DocumentBase):
         from_attributes = True
 
 
-class Document(DocumentInDB):
-    """Schema for document data returned in API responses."""
+class Asset(AssetInDB):
+    """Schema for asset data returned in API responses."""
 
     human_readable_size: str
     """File size in a human-readable format (e.g., '1.5 MB')."""
@@ -91,17 +91,17 @@ class Document(DocumentInDB):
         from_attributes = True
 
 
-class DocumentUploadResponse(BaseModel):
-    """Schema for document upload response."""
+class AssetUploadResponse(BaseModel):
+    """Schema for file upload response."""
 
-    document_id: UUID
-    """Unique identifier for the uploaded document."""
+    asset_id: UUID
+    """Unique identifier for the uploaded file."""
     url: str
     """URL for accessing the uploaded file."""
     serve_url: str
-    """URL for serving the document publicly via token."""
+    """URL for serving the file publicly via token."""
     name: str
-    """Human readable name for the document."""
+    """Human readable name for the file."""
     filename: str
     """Original filename."""
     mime_type: str
@@ -113,7 +113,7 @@ class DocumentUploadResponse(BaseModel):
     labels: Dict[str, Any]
     """Dictionary of labels."""
     state: str
-    """Current state of the document."""
+    """Current state of the file."""
     state_message: str
     """Message describing the current state."""
 
@@ -123,11 +123,11 @@ class DocumentUploadResponse(BaseModel):
         from_attributes = True
 
 
-class DocumentSearchQuery(BaseModel):
-    """Schema for document search queries."""
+class AssetSearchQuery(BaseModel):
+    """Schema for file search queries."""
 
     user_id: Optional[UUID] = None
-    """Optional user ID to filter documents by owner."""
+    """Optional user ID to filter files by owner."""
     labels: Optional[Dict[str, Any]] = None
     """Optional dictionary of labels to filter by."""
     state: Optional[str] = None
@@ -141,7 +141,7 @@ class DocumentSearchQuery(BaseModel):
     @classmethod
     def validate_state(cls, v):
         if v is not None:
-            valid_states = {state.value for state in DocumentState}
+            valid_states = {state.value for state in AssetState}
             if v.lower() not in valid_states:
                 raise ValueError(
                     f'Invalid state. Must be one of: {", ".join(valid_states)}'

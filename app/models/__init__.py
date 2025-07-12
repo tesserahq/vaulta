@@ -1,10 +1,10 @@
 from app.models.user import User
-from app.models.document import Document
+from app.models.asset import Asset
 from app.models.client import Client
 
 
 __all__ = [
     "User",
-    "Document",
+    "Asset",
     "Client",
 ]
