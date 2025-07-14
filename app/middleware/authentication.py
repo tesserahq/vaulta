@@ -12,7 +12,7 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             "/health",
             "/openapi.json",
             "/docs",
-        ] or request.url.path.startswith("/files/serve/"):
+        ] or request.url.path.startswith("/assets/serve/"):
             return await call_next(request)
 
         authorization: str = request.headers.get("Authorization")

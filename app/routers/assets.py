@@ -17,6 +17,7 @@ import os
 from datetime import datetime
 
 from app.utils.auth import get_current_user
+from app.utils.token_utils import verify_signed_url
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
@@ -26,22 +27,22 @@ def get_storage_backend() -> StorageBackend:
     return StorageFactory.get_backend()
 
 
-@router.get("/serve/{token}")
-async def serve_document_via_token(
-    token: str,
+@router.get("/serve/{payload}")
+async def serve_document_via_signed_url(
+    payload: str,
     storage: StorageBackend = Depends(get_storage_backend),
     db: Session = Depends(get_db),
 ):
-    """Serve a file via token for public access (like S3 pre-signed URLs)."""
+    """Serve a file via signed URL payload for public access."""
     if not isinstance(storage, LocalStorageBackend):
         raise HTTPException(
             status_code=400,
-            detail="Token-based serving is only supported with local storage",
+            detail="Signed URL serving is only supported with local storage",
         )
 
     try:
-        # Verify the token and get the file ID
-        asset_id = storage.verify_serve_token(token)
+        # Verify the signed URL payload and get the document ID
+        asset_id = verify_signed_url(payload)
 
         asset_service = AssetService(db)
         asset = asset_service.get_asset(UUID(asset_id))
@@ -73,8 +74,6 @@ async def serve_document_via_token(
                 "Last-Modified": last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT"),
             },
         )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"Invalid asset ID: {str(e)}")
     except HTTPException:
         raise
     except Exception as e:
@@ -125,21 +124,21 @@ async def download_document(
         )
 
 
-class DocumentLabels(BaseModel):
+class AssetLabels(BaseModel):
     """Labels for asset search."""
 
     labels: Dict[str, Any]
 
 
-class DocumentQuery(BaseModel):
+class AssetQuery(BaseModel):
     """Query parameters for asset search."""
 
-    query: DocumentLabels
+    query: AssetLabels
 
 
 @router.post("/search", response_model=List[Asset])
 async def get_assets_by_labels(
-    query: DocumentQuery,
+    query: AssetQuery,
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(
         100, ge=1, le=1000, description="Maximum number of records to return"
