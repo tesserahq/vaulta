@@ -27,8 +27,29 @@ def get_storage_backend() -> StorageBackend:
     return StorageFactory.get_backend()
 
 
+@router.get("", response_model=List[Asset])
+async def get_all_assets(
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(
+        100, ge=1, le=1000, description="Maximum number of records to return"
+    ),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get all assets with pagination support.
+
+    Returns a paginated list of all assets in the system.
+    Use skip and limit parameters for pagination.
+    """
+    asset_service = AssetService(db)
+    assets = asset_service.search(query=AssetSearchQuery(skip=skip, limit=limit))
+
+    return assets
+
+
 @router.get("/serve/{payload}")
-async def serve_document_via_signed_url(
+async def serve_asset_via_signed_url(
     payload: str,
     storage: StorageBackend = Depends(get_storage_backend),
     db: Session = Depends(get_db),
@@ -41,7 +62,7 @@ async def serve_document_via_signed_url(
         )
 
     try:
-        # Verify the signed URL payload and get the document ID
+        # Verify the signed URL payload and get the asset ID
         asset_id = verify_signed_url(payload)
 
         asset_service = AssetService(db)
@@ -81,7 +102,7 @@ async def serve_document_via_signed_url(
 
 
 @router.get("/download/{token}")
-async def download_document(
+async def download_asset(
     token: str,
     storage: StorageBackend = Depends(get_storage_backend),
     db: Session = Depends(get_db),
