@@ -1,6 +1,7 @@
 from fastapi import APIRouter, UploadFile, Depends, HTTPException, Form, File, Query
 from typing import Optional, List, Dict, Any
 from fastapi.responses import FileResponse
+from app.services import asset_service
 from app.storage.base import StorageBackend
 from app.storage.factory import StorageFactory
 from app.storage.local import LocalStorageBackend
@@ -9,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.services.asset_upload import upload_asset
 from app.schemas.asset import AssetSearchQuery, AssetUploadResponse, Asset
+from app.schemas.common import MessageResponse
 from app.models.user import User
 from app.services.asset_service import AssetService
 import json
@@ -18,6 +20,7 @@ from datetime import datetime
 
 from app.utils.auth import get_current_user
 from app.utils.token_utils import verify_signed_url
+from app.routers.utils.dependencies import get_asset_by_id
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
@@ -247,4 +250,30 @@ async def upload_asset_endpoint(
         storage=storage,
         name=name,
         labels=parsed_labels,
+    )
+
+
+@router.delete("/{asset_id}", response_model=MessageResponse)
+async def delete_asset(
+    asset: Asset = Depends(get_asset_by_id),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Delete an asset by ID.
+
+    The asset must exist and belong to the current user.
+    Returns a success message with consistent response format.
+    """
+    if asset.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403, detail="Not authorized to delete this asset"
+        )
+
+    success = AssetService(db).delete_asset(asset.id)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete asset")
+
+    return MessageResponse(
+        message="Asset deleted successfully", details={"asset_id": str(asset.id)}
     )

@@ -139,7 +139,12 @@ class TestClientRouter:
 
         response = client.delete(f"/clients/{db_client.id}")
         assert response.status_code == 200
-        assert response.json()["message"] == "Client deleted successfully"
+
+        data = response.json()
+        assert "message" in data
+        assert data["message"] == "Client deleted successfully"
+        assert "details" in data
+        assert data["details"]["client_id"] == str(db_client.id)
 
         # Verify client is deleted
         response = client.get(f"/clients/{db_client.id}")

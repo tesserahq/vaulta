@@ -5,8 +5,10 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.services.client_service import ClientService
 from app.schemas.client import Client, ClientCreate, ClientUpdate, ClientWithSecret
+from app.schemas.common import MessageResponse
 from app.models.user import User
 from app.utils.auth import get_current_user
+from app.routers.utils.dependencies import get_client_by_id
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
@@ -73,52 +75,51 @@ async def create_client(
 
 @router.put("/{client_id}", response_model=Client)
 async def update_client(
-    client_id: UUID,
-    client: ClientUpdate,
+    client_update: ClientUpdate,
+    client: Client = Depends(get_client_by_id),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Update an existing client."""
     client_service = ClientService(db)
 
-    # Check if client exists
-    existing_client = client_service.get_client(client_id)
-    if not existing_client:
-        raise HTTPException(status_code=404, detail="Client not found")
-
     # If client_id is being updated, check for uniqueness
-    if client.client_id and client.client_id != existing_client.client_id:
-        duplicate_client = client_service.get_client_by_client_id(client.client_id)
+    if client_update.client_id and client_update.client_id != client.client_id:
+        duplicate_client = client_service.get_client_by_client_id(
+            client_update.client_id
+        )
         if duplicate_client:
             raise HTTPException(status_code=400, detail="Client ID already exists")
 
-    updated_client = client_service.update_client(client_id, client)
+    updated_client = client_service.update_client(client.id, client_update)
     return updated_client
 
 
-@router.delete("/{client_id}")
+@router.delete("/{client_id}", response_model=MessageResponse)
 async def delete_client(
-    client_id: UUID,
+    client: Client = Depends(get_client_by_id),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Delete a client."""
     client_service = ClientService(db)
-    success = client_service.delete_client(client_id)
+    success = client_service.delete_client(client.id)
     if not success:
         raise HTTPException(status_code=404, detail="Client not found")
-    return {"message": "Client deleted successfully"}
+    return MessageResponse(
+        message="Client deleted successfully", details={"client_id": str(client.id)}
+    )
 
 
 @router.post("/{client_id}/regenerate-secret", response_model=ClientWithSecret)
 async def regenerate_client_secret(
-    client_id: UUID,
+    client: Client = Depends(get_client_by_id),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Regenerate the secret for a client and return the new secret."""
     client_service = ClientService(db)
-    client = client_service.regenerate_secret(client_id)
+    client = client_service.regenerate_secret(client.id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     return client
