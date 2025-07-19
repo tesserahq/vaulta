@@ -1,6 +1,6 @@
 import logging
 from app.middleware.db_session import DBSessionMiddleware
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 import rollbar
@@ -33,7 +33,12 @@ def create_app(testing: bool = False, auth_middleware=None) -> FastAPI:
         # Attach Rollbar handler to the root logger
         logger.addHandler(rollbar_handler)
 
-    app = FastAPI()
+    # Create FastAPI app with custom settings for file uploads
+    app = FastAPI(
+        title="Vaulta API",
+        description="Asset management API",
+        version="1.0.0",
+    )
 
     if not testing and not settings.disable_auth:
         logger.info("Main: Adding authentication middleware")

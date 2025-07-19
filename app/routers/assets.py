@@ -20,7 +20,7 @@ from datetime import datetime
 
 from app.utils.auth import get_current_user
 from app.utils.token_utils import verify_signed_url
-from app.routers.utils.dependencies import get_asset_by_id
+from app.routers.utils.dependencies import get_asset_by_id, get_validated_file
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
@@ -184,7 +184,7 @@ async def get_assets_by_labels(
 
 @router.post("", response_model=AssetUploadResponse)
 async def upload_asset_endpoint(
-    file: UploadFile = File(...),
+    file: UploadFile = Depends(get_validated_file),
     name: Optional[str] = Form(None),
     labels: Optional[str] = Form(None),
     db: Session = Depends(get_db),
@@ -197,6 +197,10 @@ async def upload_asset_endpoint(
     - file: The asset to upload (required)
     - name: Optional custom name for the asset
     - labels: Optional JSON string containing a dictionary of labels
+    
+    File size limits:
+    - Default maximum: 100MB
+    - Configurable via MAX_FILE_SIZE_MB environment variable
     
     Example using curl:
     ```bash

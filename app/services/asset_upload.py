@@ -1,6 +1,6 @@
 from typing import Optional, Dict, Any
 from uuid import UUID
-from fastapi import UploadFile
+from fastapi import UploadFile, HTTPException
 from app.services.asset_service import AssetService
 from app.schemas.asset import (
     AssetCreate,
@@ -9,6 +9,7 @@ from app.schemas.asset import (
 )
 from app.storage.base import StorageBackend
 from app.constants.asset import AssetState
+from app.config import get_settings
 
 
 async def upload_asset(
@@ -33,11 +34,21 @@ async def upload_asset(
     Returns:
         AssetUploadResponse: Asset information including ID and URL
     """
-    # Get file metadata
+    # Get file metadata and validate size
     asset_size = 0
     file.file.seek(0, 2)  # Seek to end of asset
     asset_size = file.file.tell()
     file.file.seek(0)  # Reset file pointer
+
+    # Validate file size
+    settings = get_settings()
+    if asset_size > settings.max_file_size:
+        max_size_mb = settings.max_file_size // (1024 * 1024)
+        file_size_mb = asset_size // (1024 * 1024)
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum size allowed is {max_size_mb}MB. File size: {file_size_mb}MB",
+        )
 
     # Create file record in pending state
     asset_data = AssetCreate(

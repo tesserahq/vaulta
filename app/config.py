@@ -38,6 +38,18 @@ class Settings(BaseSettings):
     public_url_prefix: str = Field(
         default="/files", json_schema_extra={"env": "PUBLIC_URL_PREFIX"}
     )
+    port: int = Field(default=8000, json_schema_extra={"env": "PORT"})
+    # File upload settings
+    max_file_size: int = Field(
+        default=100 * 1024 * 1024,  # 100MB default
+        description="Maximum file size in bytes",
+        json_schema_extra={"env": "MAX_FILE_SIZE"},
+    )
+    max_file_size_mb: int = Field(
+        default=100,
+        description="Maximum file size in MB (for easier configuration)",
+        json_schema_extra={"env": "MAX_FILE_SIZE_MB"},
+    )
 
     # S3 settings
     s3_bucket_name: str = ""
@@ -72,6 +84,13 @@ class Settings(BaseSettings):
             values["database_url"] = os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL)
 
         return values
+
+    @model_validator(mode="after")
+    def set_max_file_size_from_mb(self):
+        """Set max_file_size from max_file_size_mb if provided."""
+        if hasattr(self, "max_file_size_mb") and self.max_file_size_mb:
+            self.max_file_size = self.max_file_size_mb * 1024 * 1024
+        return self
 
     @property
     def is_production(self) -> bool:

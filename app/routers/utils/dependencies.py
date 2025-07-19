@@ -1,39 +1,24 @@
-from app.db import get_db
+from fastapi import Depends, HTTPException, UploadFile
+from app.config import get_settings
+from app.models.asset import Asset
 from app.models.client import Client
 from app.services.asset_service import AssetService
-from app.schemas.asset import Asset
-from fastapi import Depends, HTTPException
 from app.services.client_service import ClientService
-from uuid import UUID
+from app.db import get_db
 from sqlalchemy.orm import Session
+from uuid import UUID
 
 
-def get_asset_by_id(
-    asset_id: UUID,
-    db: Session = Depends(get_db),
-) -> Asset:
-    """FastAPI dependency to get an asset by ID.
-
-    Args:
-        asset_id: The UUID of the asset to retrieve
-        db: Database session dependency
-
-    Returns:
-        Asset: The retrieved asset
-
-    Raises:
-        HTTPException: If the asset is not found
-    """
-    asset = AssetService(db).get_asset(asset_id)
-    if asset is None:
+def get_asset_by_id(asset_id: UUID, db: Session = Depends(get_db)) -> Asset:
+    """Get an asset by ID or raise 404."""
+    asset_service = AssetService(db)
+    asset = asset_service.get_asset(asset_id)
+    if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
     return asset
 
 
-def get_client_by_id(
-    client_id: UUID,
-    db: Session = Depends(get_db),
-) -> Client:
+def get_client_by_id(client_id: UUID, db: Session = Depends(get_db)) -> Client:
     """FastAPI dependency to get a client by ID.
 
     Args:
@@ -50,3 +35,24 @@ def get_client_by_id(
     if client is None:
         raise HTTPException(status_code=404, detail="Client not found")
     return client
+
+
+def validate_file_size(file: UploadFile) -> UploadFile:
+    """Validate that the uploaded file size is within limits."""
+    settings = get_settings()
+
+    # Check if file size is known (some files might not have size info)
+    if hasattr(file, "size") and file.size:
+        if file.size > settings.max_file_size:
+            max_size_mb = settings.max_file_size // (1024 * 1024)
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large. Maximum size allowed is {max_size_mb}MB. File size: {file.size // (1024 * 1024)}MB",
+            )
+
+    return file
+
+
+def get_validated_file(file: UploadFile = Depends(validate_file_size)) -> UploadFile:
+    """Get a validated file that passes size checks."""
+    return file
