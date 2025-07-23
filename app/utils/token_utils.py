@@ -53,14 +53,12 @@ def derive_secret(client_id: str, master_secret: Optional[str] = None) -> str:
     ).hexdigest()
 
 
-def sign_serve_url(
-    document_id: str, client_id: str, expires_in: int, secret: str
-) -> str:
+def sign_serve_url(asset_id: str, client_id: str, expires_in: int, secret: str) -> str:
     """
-    Sign a serve URL with document ID, client ID, expiration time, and HMAC signature.
+    Sign a serve URL with asset ID, client ID, expiration time, and HMAC signature.
 
     Args:
-        document_id: The document ID to serve
+        asset_id: The asset ID to serve
         client_id: The client ID used for secret derivation
         expires_in: Number of seconds until the URL expires
         secret: The secret key for signing (should be the derived secret)
@@ -69,21 +67,21 @@ def sign_serve_url(
         str: The signed URL path
     """
     expires_at = int(time.time()) + expires_in
-    payload = f"{document_id}.{client_id}.{expires_at}"
+    payload = f"{asset_id}.{client_id}.{expires_at}"
     signature = hmac.new(secret.encode(), payload.encode(), hashlib.sha256).hexdigest()
-    return f"/serve/{payload}.{signature}"
+    return f"/assets/serve/{payload}.{signature}"
 
 
 def verify_signed_url(payload: str, secret: Optional[str] = None) -> str:
     """
-    Verify a signed URL payload and return the document ID if valid.
+    Verify a signed URL payload and return the asset ID if valid.
 
     Args:
-        payload: The signed URL payload (e.g., "document_id.client_id.expires_at.signature")
+        payload: The signed URL payload (e.g., "asset_id.client_id.expires_at.signature")
         secret: The master secret key for verification. If not provided, uses the one from config.
 
     Returns:
-        str: The document ID if the URL is valid
+        str: The asset ID if the URL is valid
 
     Raises:
         HTTPException: If the URL is invalid, expired, or tampered with
@@ -99,8 +97,7 @@ def verify_signed_url(payload: str, secret: Optional[str] = None) -> str:
         if len(parts) != 4:
             raise HTTPException(status_code=400, detail="Invalid URL format")
 
-        document_id, client_id, expires_at_str, signature = parts
-        print(document_id, client_id, expires_at_str, signature)
+        asset_id, client_id, expires_at_str, signature = parts
         # Verify expiration
         try:
             expires_at = int(expires_at_str)
@@ -115,7 +112,7 @@ def verify_signed_url(payload: str, secret: Optional[str] = None) -> str:
         derived_secret = derive_secret(client_id, secret)
 
         # Reconstruct payload and verify signature
-        payload_data = f"{document_id}.{client_id}.{expires_at}"
+        payload_data = f"{asset_id}.{client_id}.{expires_at}"
         expected_signature = hmac.new(
             derived_secret.encode(), payload_data.encode(), hashlib.sha256
         ).hexdigest()
@@ -123,7 +120,7 @@ def verify_signed_url(payload: str, secret: Optional[str] = None) -> str:
         if not hmac.compare_digest(signature, expected_signature):
             raise HTTPException(status_code=403, detail="Invalid signature")
 
-        return document_id
+        return asset_id
 
     except HTTPException:
         raise
