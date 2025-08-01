@@ -19,5 +19,4 @@ uvicorn app.main:app \
     --host 0.0.0.0 \
     --port $PORT \
     --limit-concurrency 1000 \
-    --limit-max-requests 10000 \
-    --limit-request-fields 100
+    --limit-max-requests 10000
