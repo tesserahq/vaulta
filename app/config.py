@@ -23,18 +23,22 @@ class Settings(BaseSettings):
     )
     # Master secret key used for signing URLs and generating secure tokens
     # This key is used by the storage backend to create signed URLs for secure file access
-    master_secret_key: str = Field(
-        ...,
+    master_secret_key: Optional[str] = Field(
+        default=None,
         description="Master secret key used for signing URLs and generating secure tokens",
         json_schema_extra={"env": "MASTER_SECRET_KEY"},
-    )  # Required field for URL signing
+    )  # Optional field for URL signing, defaults to None
     rollbar_access_token: Optional[str] = Field(
         default=None, json_schema_extra={"env": "ROLLBAR_ACCESS_TOKEN"}
     )  # Optional field
 
     # Storage settings
     storage_backend: str = "local"  # "local" or "s3"
-    local_storage_dir: str = "storage"
+    local_storage_dir: str = Field(
+        default="storage",
+        description="Local storage directory path. Can be relative (e.g., 'storage') or absolute (e.g., '/tmp/myfiles')",
+        json_schema_extra={"env": "LOCAL_STORAGE_DIR"},
+    )
     public_url_prefix: str = Field(
         default="/files", json_schema_extra={"env": "PUBLIC_URL_PREFIX"}
     )
