@@ -14,9 +14,12 @@ from app.schemas.common import MessageResponse
 from app.models.user import User
 from app.services.asset_service import AssetService
 import json
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import os
 from datetime import datetime
+import httpx
+import tempfile
+from urllib.parse import urlparse
 
 from app.utils.auth import get_current_user
 from app.utils.token_utils import verify_signed_url
@@ -276,6 +279,167 @@ async def upload_asset_endpoint(
         name=name,
         labels=parsed_labels,
     )
+
+
+class AssetDownloadRequest(BaseModel):
+    """Request model for downloading assets from URLs."""
+
+    url: str = Field(..., description="URL of the file to download")
+    name: Optional[str] = Field(None, description="Optional custom name for the asset")
+    labels: Optional[Dict[str, Any]] = Field(
+        None, description="Optional labels for the asset"
+    )
+
+
+@router.post("/from-url", response_model=AssetUploadResponse)
+async def create_asset_from_url(
+    request: AssetDownloadRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Download a file from a URL and create an asset.
+
+    This endpoint downloads a file from the provided URL and creates an asset record.
+    The file is downloaded to a temporary location, then processed and stored like
+    a regular file upload.
+
+    Args:
+        request: AssetDownloadRequest containing the URL and optional metadata
+
+    Returns:
+        AssetUploadResponse: Asset information including ID and URL
+
+    Example request:
+    ```json
+    {
+        "url": "https://www.hello.com/some-file.png",
+        "name": "My Downloaded File",
+        "labels": {
+            "source": "external",
+            "category": "image"
+        }
+    }
+    ```
+    """
+    # Validate URL
+    try:
+        parsed_url = urlparse(request.url)
+        if not parsed_url.scheme or not parsed_url.netloc:
+            raise HTTPException(status_code=400, detail="Invalid URL format")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid URL: {str(e)}")
+
+    # Download the file
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(request.url, follow_redirects=True)
+            response.raise_for_status()
+
+            # Get content type and filename from response
+            content_type = response.headers.get(
+                "content-type", "application/octet-stream"
+            )
+
+            # Try to get filename from Content-Disposition header or URL
+            filename = None
+            content_disposition = response.headers.get("content-disposition", "")
+            if "filename=" in content_disposition:
+                filename = content_disposition.split("filename=")[1].strip('"')
+
+            if not filename:
+                # Extract filename from URL
+                filename = os.path.basename(parsed_url.path)
+                if not filename or "." not in filename:
+                    # Generate filename based on content type
+                    extension = (
+                        content_type.split("/")[-1] if "/" in content_type else "bin"
+                    )
+                    filename = f"downloaded_file.{extension}"
+
+            # Create a temporary file to store the downloaded content
+            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+                temp_file.write(response.content)
+                temp_file_path = temp_file.name
+
+            # Create a file wrapper to make downloaded content compatible with upload_asset
+            class DownloadedFileWrapper:
+                def __init__(
+                    self, file_path: str, filename: str, content_type: str, size: int
+                ):
+                    self.file_path = file_path
+                    self.filename = filename
+                    self.content_type = content_type
+                    self.size = size
+                    self._file = None
+                    # Create a file-like object that upload_asset expects
+                    self.file = open(file_path, "rb")
+
+                async def read(self, size: int = -1):
+                    if not self._file:
+                        self._file = open(self.file_path, "rb")
+                    return self._file.read(size)
+
+                def seek(self, offset: int, whence: int = 0):
+                    if not self._file:
+                        self._file = open(self.file_path, "rb")
+                    return self._file.seek(offset, whence)
+
+                def tell(self):
+                    if not self._file:
+                        self._file = open(self.file_path, "rb")
+                    return self._file.tell()
+
+                def close(self):
+                    if self._file:
+                        self._file.close()
+                        self._file = None
+                    if hasattr(self, "file") and self.file:
+                        self.file.close()
+
+                def __del__(self):
+                    # Clean up temporary file
+                    try:
+                        if hasattr(self, "file") and self.file:
+                            self.file.close()
+                        os.unlink(self.file_path)
+                    except:
+                        pass
+
+            # Create file wrapper for downloaded content
+            downloaded_file = DownloadedFileWrapper(
+                file_path=temp_file_path,
+                filename=filename,
+                content_type=content_type,
+                size=len(response.content),
+            )
+
+            # Use the existing upload logic
+            asset_service = AssetService(db)
+            storage = StorageFactory.get_backend()
+
+            return await upload_asset(
+                file=downloaded_file,
+                user_id=UUID(str(current_user.id)),
+                asset_service=asset_service,
+                storage=storage,
+                name=request.name,
+                labels=request.labels,
+            )
+
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to download file from URL: HTTP {e.response.status_code}",
+        )
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=400, detail=f"Failed to download file from URL: {str(e)}"
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error processing downloaded file: {str(e)}"
+        )
 
 
 @router.delete("/{asset_id}", response_model=MessageResponse)
