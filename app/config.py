@@ -1,5 +1,5 @@
 import os
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 from typing import Optional
 from pydantic_settings import BaseSettings
 from sqlalchemy.engine.url import make_url, URL
@@ -14,7 +14,10 @@ class Settings(BaseSettings):
     app_name: str = SERVICE_NAME
     otel_enabled: bool = Field(default=False, json_schema_extra={"env": "OTEL_ENABLED"})
     database_url: Optional[str] = None  # Will be set dynamically
-    environment: str = Field(default="development", json_schema_extra={"env": "ENV"})
+    environment: str = Field(
+        default="development",
+        validation_alias=AliasChoices("ENV", "ENVIRONMENT"),
+    )
     log_level: str = Field(default="INFO", json_schema_extra={"env": "LOG_LEVEL"})
     disable_auth: bool = Field(default=False, json_schema_extra={"env": "DISABLE_AUTH"})
     identies_host: str = Field(
