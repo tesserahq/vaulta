@@ -12,11 +12,18 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from app.telemetry import setup_tracing
 from app.exceptions.handlers import register_exception_handlers
 from app.logging_config import get_logger
+from rollbar.contrib.fastapi import ReporterMiddleware as RollbarMiddleware
 
 
 def create_app(testing: bool = False, auth_middleware=None) -> FastAPI:
     logger = get_logger()
     settings = get_settings()
+    # Create FastAPI app with custom settings for file uploads
+    app = FastAPI(
+        title="Vaulta API",
+        description="Asset management API",
+        version="1.0.0",
+    )
 
     if settings.is_production:
         # Initialize Rollbar SDK with your server-side access token
@@ -32,13 +39,7 @@ def create_app(testing: bool = False, auth_middleware=None) -> FastAPI:
 
         # Attach Rollbar handler to the root logger
         logger.addHandler(rollbar_handler)
-
-    # Create FastAPI app with custom settings for file uploads
-    app = FastAPI(
-        title="Vaulta API",
-        description="Asset management API",
-        version="1.0.0",
-    )
+        app.add_middleware(RollbarMiddleware)
 
     if not testing and not settings.disable_auth:
         logger.info("Main: Adding authentication middleware")
