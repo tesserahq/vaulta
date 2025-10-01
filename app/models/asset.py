@@ -35,8 +35,9 @@ class Asset(Base, TimestampMixin):
     @property
     def human_readable_size(self) -> str:
         """Return the asset size in a human-readable format."""
+        size_value = float(self.size)
         for unit in ["B", "KB", "MB", "GB", "TB"]:
-            if self.size < 1024.0:
-                return f"{self.size:.1f} {unit}"
-            self.size /= 1024.0
-        return f"{self.size:.1f} PB"
+            if size_value < 1024.0:
+                return f"{size_value:.1f} {unit}"
+            size_value /= 1024.0
+        return f"{size_value:.1f} PB"

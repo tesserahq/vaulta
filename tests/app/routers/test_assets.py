@@ -34,6 +34,7 @@ class TestAssetsRouter:
         """Test retrieving an asset with invalid UUID format returns 422."""
         response = client.get("/assets/invalid-uuid")
         assert response.status_code == 422
+
     def test_delete_asset_success(self, client, setup_asset):
         """Test deleting an asset successfully."""
         asset_id = setup_asset.id
