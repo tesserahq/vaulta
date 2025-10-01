@@ -54,6 +54,16 @@ async def get_all_assets(
     return assets
 
 
+@router.get("/{asset_id}", response_model=Asset)
+async def get_asset(
+    asset: Asset = Depends(get_asset_by_id),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get a specific asset by UUID."""
+    return asset
+
+
 @router.get("/serve/{payload}")
 async def serve_asset_via_signed_url(
     payload: str,

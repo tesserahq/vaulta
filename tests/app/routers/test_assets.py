@@ -5,6 +5,35 @@ import httpx
 
 
 class TestAssetsRouter:
+    def test_get_asset_success(self, client, setup_asset):
+        """Test retrieving an asset by UUID successfully."""
+        asset_id = setup_asset.id
+
+        response = client.get(f"/assets/{asset_id}")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["id"] == str(asset_id)
+        assert data["name"] == setup_asset.name
+        assert data["filename"] == setup_asset.filename
+        assert data["mime_type"] == setup_asset.mime_type
+        assert data["size"] == setup_asset.size
+        assert data["labels"] == setup_asset.labels
+        assert data["state"] == setup_asset.state
+        assert data["state_message"] == setup_asset.state_message
+
+    def test_get_asset_not_found(self, client):
+        """Test retrieving a non-existent asset returns 404."""
+        non_existent_id = uuid4()
+
+        response = client.get(f"/assets/{non_existent_id}")
+        assert response.status_code == 404
+        assert "Asset not found" in response.json()["detail"]
+
+    def test_get_asset_invalid_uuid(self, client):
+        """Test retrieving an asset with invalid UUID format returns 422."""
+        response = client.get("/assets/invalid-uuid")
+        assert response.status_code == 422
     def test_delete_asset_success(self, client, setup_asset):
         """Test deleting an asset successfully."""
         asset_id = setup_asset.id
