@@ -10,6 +10,7 @@ from app.schemas.asset import (
 from app.storage.base import StorageBackend
 from app.constants.asset import AssetState
 from app.config import get_settings
+from app.services.analyzer import DocumentAnalyzer
 
 
 async def upload_asset(
@@ -19,6 +20,7 @@ async def upload_asset(
     storage: StorageBackend,
     name: Optional[str] = None,
     labels: Optional[Dict[str, Any]] = None,
+    extract_data: bool = False,
 ) -> AssetUploadResponse:
     """
     Upload an asset and create an asset record.
@@ -30,6 +32,7 @@ async def upload_asset(
         storage: StorageBackend instance
         name: Optional custom name for the asset (defaults to original filename)
         labels: Optional dictionary of labels to attach to the asset
+        extract_data: If True, extract data from the document using DocumentAnalyzer
 
     Returns:
         AssetUploadResponse: Asset information including ID and URL
@@ -74,8 +77,35 @@ async def upload_asset(
             ),
         )
 
+        # Extract data from document if requested (before saving to storage)
+        extracted_data = None
+        if extract_data:
+            try:
+                # Read file content for analysis
+                file.file.seek(0)  # Reset file pointer
+                file_content = await file.read()
+
+                # Analyze the document
+                analyzer = DocumentAnalyzer()
+                extracted_data = analyzer.analyze(file_content)
+
+                # Reset file pointer for storage.save()
+                file.file.seek(0)
+            except Exception as e:
+                # Log error but don't fail the upload
+                # extracted_data will remain None
+                file.file.seek(0)  # Reset file pointer even on error
+                pass
+
         # Save file to storage
         await storage.save(asset.id, file)
+
+        # Update asset with extracted data if we have it
+        if extracted_data is not None:
+            asset_service.update_asset(
+                asset.id,
+                AssetUpdate(extracted_data=extracted_data),
+            )
 
         # Get URL for accessing the file
         url = await storage.get_url(asset.id)
@@ -96,6 +126,9 @@ async def upload_asset(
             ),
         )
 
+        # Refresh asset to get latest extracted_data
+        asset = asset_service.get_asset(asset.id)
+
         return AssetUploadResponse(
             asset_id=asset.id,
             url=url,
@@ -108,6 +141,7 @@ async def upload_asset(
             labels=asset.labels,
             state=AssetState.COMPLETED.value,
             state_message="File upload completed successfully",
+            extracted_data=asset.extracted_data if asset.extracted_data else None,
         )
 
     except Exception as e:

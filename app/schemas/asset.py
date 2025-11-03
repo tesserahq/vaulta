@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime
@@ -47,6 +47,8 @@ class AssetUpdate(BaseModel):
     """Updated file labels."""
     state: Optional[str] = None
     state_message: Optional[str] = None
+    extracted_data: Optional[Dict[str, Any]] = None
+    """Extracted data from the asset (encrypted in database)."""
 
     @field_validator("state")
     @classmethod
@@ -73,10 +75,7 @@ class AssetInDB(AssetBase):
     updated_at: datetime
     """Timestamp when the file was last updated."""
 
-    class Config:
-        """Pydantic model configuration."""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Asset(AssetInDB):
@@ -85,10 +84,7 @@ class Asset(AssetInDB):
     human_readable_size: str
     """File size in a human-readable format (e.g., '1.5 MB')."""
 
-    class Config:
-        """Pydantic model configuration."""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AssetUploadResponse(BaseModel):
@@ -117,10 +113,9 @@ class AssetUploadResponse(BaseModel):
     state_message: str
     """Message describing the current state."""
 
-    class Config:
-        """Pydantic model configuration."""
+    extracted_data: Optional[Dict[str, Any]] = None
 
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AssetSearchQuery(BaseModel):

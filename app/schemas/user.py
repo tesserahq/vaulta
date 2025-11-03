@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
@@ -91,10 +91,7 @@ class UserInDB(UserBase):
     updated_at: datetime
     """Timestamp when the user record was last updated."""
 
-    class Config:
-        """Pydantic model configuration."""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class User(UserInDB):
@@ -130,7 +127,4 @@ class UserDetails(BaseModel):
     verified_at: Optional[datetime] = None
     """Timestamp when the user's account was verified."""
 
-    class Config:
-        """Pydantic model configuration."""
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
