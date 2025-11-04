@@ -56,7 +56,11 @@ RUN apt-get update \
     curl \
     libpq-dev \
     libpq5 \
-    tesseract-ocr
+    tesseract-ocr \
+    libgl1 \
+    libglib2.0-0 \
+    libgomp1
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR $PYSETUP_PATH
 
