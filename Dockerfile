@@ -55,7 +55,8 @@ RUN apt-get update \
     && apt-get install --no-install-recommends -y \
     curl \
     libpq-dev \
-    libpq5
+    libpq5 \
+    tesseract-ocr
 
 WORKDIR $PYSETUP_PATH
 

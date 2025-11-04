@@ -221,6 +221,7 @@ async def upload_asset_endpoint(
     file: UploadFile = Depends(get_validated_file),
     name: Optional[str] = Form(None),
     labels: Optional[str] = Form(None),
+    extract_data: bool = Form(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -231,6 +232,7 @@ async def upload_asset_endpoint(
     - file: The asset to upload (required)
     - name: Optional custom name for the asset
     - labels: Optional JSON string containing a dictionary of labels
+    - extract_data: Optional boolean flag to extract data from the document using DocumentAnalyzer
     
     File size limits:
     - Default maximum: 100MB
@@ -242,7 +244,8 @@ async def upload_asset_endpoint(
       -H "Authorization: Bearer YOUR_TOKEN" \
       -F "file=@/path/to/file.pdf" \
       -F "name=Custom Name" \
-      -F "labels={\"emi\": 1234, \"hello\": \"asdf\"}"
+      -F "labels={\"emi\": 1234, \"hello\": \"asdf\"}" \
+      -F "extract_data=true"
     ```
     
     Example using Python requests:
@@ -252,7 +255,8 @@ async def upload_asset_endpoint(
     files = {'file': open('file.pdf', 'rb')}
     data = {
         'name': 'Custom Name',
-        'labels': json.dumps({'emi': 1234, 'hello': 'asdf'})
+        'labels': json.dumps({'emi': 1234, 'hello': 'asdf'}),
+        'extract_data': True
     }
     
     response = requests.post(
@@ -288,6 +292,7 @@ async def upload_asset_endpoint(
         storage=storage,
         name=name,
         labels=parsed_labels,
+        extract_data=extract_data,
     )
 
 

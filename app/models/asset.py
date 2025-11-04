@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 import uuid
 
 from app.db import Base
+from app.models.encrypted_types import EncryptedJSONB
 
 
 class Asset(Base, TimestampMixin):
@@ -28,6 +29,9 @@ class Asset(Base, TimestampMixin):
     state_message = Column(
         String, nullable=True
     )  # Message describing the current state
+    extracted_data = Column(
+        EncryptedJSONB, default=dict, nullable=True
+    )  # Extracted data from the asset (encrypted)
 
     # Relationships
     user = relationship("User", back_populates="assets")
