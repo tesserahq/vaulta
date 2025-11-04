@@ -59,7 +59,7 @@ RUN apt-get update \
     tesseract-ocr \
     libgl1 \
     libglib2.0-0 \
-    libgomp1
+    libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR $PYSETUP_PATH
