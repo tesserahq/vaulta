@@ -14,6 +14,12 @@ class Settings(BaseSettings):
     app_name: str = SERVICE_NAME
     otel_enabled: bool = Field(default=False, json_schema_extra={"env": "OTEL_ENABLED"})
     database_url: Optional[str] = None  # Will be set dynamically
+    database_pool_size: int = Field(
+        default=10, json_schema_extra={"env": "DATABASE_POOL_SIZE"}
+    )
+    database_max_overflow: int = Field(
+        default=5, json_schema_extra={"env": "DATABASE_MAX_OVERFLOW"}
+    )
     environment: str = Field(
         default="development",
         validation_alias=AliasChoices("ENV", "ENVIRONMENT"),
@@ -56,6 +62,9 @@ class Settings(BaseSettings):
         default=100,
         description="Maximum file size in MB (for easier configuration)",
         json_schema_extra={"env": "MAX_FILE_SIZE_MB"},
+    )
+    db_app_name: str = Field(
+        default="vaulta-api", json_schema_extra={"env": "DB_APP_NAME"}
     )
 
     # S3 settings

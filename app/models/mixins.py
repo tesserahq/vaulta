@@ -12,3 +12,9 @@ class TimestampMixin:
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=False,
     )
+
+
+class SoftDeleteMixin:
+    """Mixin to add soft delete functionality to models using deleted_at timestamp."""
+
+    deleted_at = Column(DateTime, nullable=True, index=True)

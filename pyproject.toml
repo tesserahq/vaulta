@@ -56,6 +56,9 @@ pdf2image = "^1.17.0"
 passporteye = "^2.2.2"
 paddleocr = "^3.3.1"
 cryptography = "^46.0.3"
+# tessera-sdk = { path = "../tessera-sdk-py/", develop = true }
+tessera-sdk = { git = "https://github.com/tesserahq/tessera-sdk-py.git", branch = "main" }
+
 
 [tool.poetry.dependencies.uvicorn]
 extras = [ "standard" ]
