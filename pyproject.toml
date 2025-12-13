@@ -24,7 +24,7 @@ python = ">=3.11,<3.14"
 fastapi = "^0.115.11"
 python-dotenv = "^1.0.0"
 gunicorn = "^23.0.0"
-faker = "^37.1.0"
+faker = "^38.0.0"
 
 sqlalchemy = "^2.0.39"
 sqlalchemy-json = "^0.7.0"
