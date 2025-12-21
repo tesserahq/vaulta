@@ -7,7 +7,7 @@ from sqlalchemy.engine.url import make_url, URL
 DEFAULT_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/vaulta"
 DEFAULT_TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/vaulta_test"
 
-SERVICE_NAME = "vaulta"
+SERVICE_NAME = "vaulta-api"
 
 
 class Settings(BaseSettings):
