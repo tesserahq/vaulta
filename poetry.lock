@@ -5137,9 +5137,11 @@ develop = false
 cryptography = "^46.0.3"
 faststream = {version = "^0.6.3", extras = ["nats"]}
 jinja2 = "^3.1.6"
+opentelemetry-instrumentation-sqlalchemy = "^0.60b1"
+opentelemetry-sdk = "^1.39.1"
 pydantic = {version = "^2.12.4", extras = ["email"]}
 pydantic-settings = "^2.9.1"
-redis = ">=5.0.1,<7"
+redis = ">=5.0.1,<8"
 requests = ">=2.25.0"
 sqlalchemy = "^2.0.39"
 starlette = ">=0.27.0"
@@ -5149,7 +5151,7 @@ urllib3 = ">=1.26.0"
 type = "git"
 url = "https://github.com/tesserahq/tessera-sdk-py.git"
 reference = "main"
-resolved_reference = "80b9b34f16185c0fa8db15215440cca9fd7eef35"
+resolved_reference = "57e1dbeb84df3ac75ab541786c739005b0ab26a4"
 
 [[package]]
 name = "threadpoolctl"
