@@ -21,20 +21,20 @@ dev = "run:dev"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.14"
-fastapi = "^0.115.11"
+fastapi = "^0.127.0"
 python-dotenv = "^1.0.0"
 gunicorn = "^23.0.0"
-faker = "^37.1.0"
+faker = "^39.0.0"
 
 sqlalchemy = "^2.0.39"
 sqlalchemy-json = "^0.7.0"
-asyncpg = "^0.30.0"
+asyncpg = "^0.31.0"
 psycopg2-binary = "^2.9.10"
 alembic = "^1.15.1"
 
 pydantic = {extras = ["email"], version = "^2.11.3"}
 black = "^25.1.0"
-ruff = "^0.11.6"
+ruff = "^0.14.0"
 pydantic-settings = "^2.9.1"
 python-jose = "^3.3.0"
 
@@ -43,6 +43,7 @@ opentelemetry-exporter-otlp-proto-grpc = "^1.39.1"
 opentelemetry-sdk = "^1.39.1"
 opentelemetry-instrumentation-sqlalchemy = "^0.60b1"
 opentelemetry-instrumentation-logging = "^0.60b1"
+opentelemetry-instrumentation-requests = "^0.60b1"
 prometheus-client = ">=0.23.1"
 
 requests = "^2.32.3"
@@ -62,11 +63,8 @@ paddleocr = "^3.3.1"
 cryptography = "^46.0.3"
 # tessera-sdk = { path = "../tessera-sdk-py/", develop = true }
 tessera-sdk = { git = "https://github.com/tesserahq/tessera-sdk-py.git", branch = "main" }
+uvicorn = "^0.40.0"
 
-
-[tool.poetry.dependencies.uvicorn]
-extras = [ "standard" ]
-version = "^0.23.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
