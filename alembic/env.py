@@ -6,7 +6,6 @@ from alembic import context
 from app.db import Base
 from app.config import Settings
 
-
 # Manually create a fresh, uncached Settings instance
 settings = Settings()
 

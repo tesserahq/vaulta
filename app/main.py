@@ -16,7 +16,6 @@ from rollbar.contrib.fastapi import ReporterMiddleware as RollbarMiddleware
 from app.db import db_manager
 from app.utils.metrics import PrometheusMiddleware, metrics
 
-
 SKIP_PATHS = ["/assets/serve", "/health", "/openapi.json", "/docs", "/metrics"]
 
 
