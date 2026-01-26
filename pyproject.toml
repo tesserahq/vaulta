@@ -23,7 +23,7 @@ dev = "run:dev"
 python = ">=3.11,<3.14"
 fastapi = "^0.128.0"
 python-dotenv = "^1.0.0"
-gunicorn = "^23.0.0"
+gunicorn = "^24.0.0"
 faker = "^40.0.0"
 
 sqlalchemy = "^2.0.39"
