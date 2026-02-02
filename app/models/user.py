@@ -36,6 +36,7 @@ class User(Base, TimestampMixin):
     verified = Column(Boolean, default=False)
     verified_at = Column(DateTime, nullable=True)
     external_id = Column(String, nullable=True)
+    service_account = Column(Boolean, default=False)
 
     # Relationships
     assets = relationship("Asset", back_populates="user", cascade="all, delete-orphan")
