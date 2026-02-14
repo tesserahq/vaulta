@@ -15,11 +15,13 @@ class User(UserMixin, Base, TimestampMixin):
 
     __tablename__ = "users"
 
-    __table_args__ = Index(
-        "uq_users_external_id",
-        "external_id",
-        unique=True,
-        postgresql_where=text("external_id IS NOT NULL"),
+    __table_args__ = (
+        Index(
+            "uq_users_external_id",
+            "external_id",
+            unique=True,
+            postgresql_where=text("external_id IS NOT NULL"),
+        ),
     )
 
     assets = relationship("Asset", back_populates="user", cascade="all, delete-orphan")
