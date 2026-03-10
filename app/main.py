@@ -15,8 +15,16 @@ from app.logging_config import get_logger
 from rollbar.contrib.fastapi import ReporterMiddleware as RollbarMiddleware
 from app.db import db_manager
 from app.utils.metrics import PrometheusMiddleware, metrics
+from tessera_sdk.fastapi import get_livez_readyz_router
 
-SKIP_PATHS = ["/assets/serve", "/health", "/openapi.json", "/docs", "/metrics"]
+SKIP_PATHS = [
+    "/assets/serve",
+    "/livez",
+    "/readyz",
+    "/openapi.json",
+    "/docs",
+    "/metrics",
+]
 
 
 class EndpointFilter(logging.Filter):
@@ -94,6 +102,8 @@ def create_app(testing: bool = False, auth_middleware=None) -> FastAPI:
         allow_methods=["*"],  # Permitir todos los métodos (GET, POST, etc.)
         allow_headers=["*"],  # Permitir todos los headers
     )
+
+    app.include_router(get_livez_readyz_router())
 
     app.include_router(assets_router)
     app.include_router(clients_router)
