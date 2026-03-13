@@ -1,5 +1,5 @@
-from app.services.client_service import ClientService
+from app.services.asset_upload import upload_asset
 
 __all__ = [
-    "ClientService",
+    "upload_asset",
 ]

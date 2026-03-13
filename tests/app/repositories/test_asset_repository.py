@@ -1,16 +1,16 @@
 import pytest
-from app.services.asset_service import AssetService
+from app.repositories.asset_repository import AssetRepository
 from app.schemas.asset import AssetCreate, AssetUpdate, AssetSearchQuery
 from app.constants.asset import AssetState
 
 
 @pytest.fixture
-def asset_service(db):
-    """Create a AssetService instance for testing."""
-    return AssetService(db)
+def asset_repository(db):
+    """Create an AssetRepository instance for testing."""
+    return AssetRepository(db)
 
 
-def test_create_asset(asset_service, setup_user):
+def test_create_asset(asset_repository, setup_user):
     """Test creating a new asset."""
     asset_data = AssetCreate(
         name="Test File",
@@ -25,7 +25,7 @@ def test_create_asset(asset_service, setup_user):
         state_message="New asset created",
     )
 
-    asset = asset_service.create_asset(asset_data, setup_user.id)
+    asset = asset_repository.create_asset(asset_data, setup_user.id)
 
     assert asset.name == asset_data.name
     assert asset.filename == asset_data.filename
@@ -38,9 +38,9 @@ def test_create_asset(asset_service, setup_user):
     assert asset.state_message == "New asset created"
 
 
-def test_get_asset(asset_service, test_asset):
+def test_get_asset(asset_repository, test_asset):
     """Test retrieving an asset by ID."""
-    retrieved_asset = asset_service.get_asset(test_asset.id)
+    retrieved_asset = asset_repository.get_asset(test_asset.id)
 
     assert retrieved_asset is not None
     assert retrieved_asset.id == test_asset.id
@@ -50,19 +50,19 @@ def test_get_asset(asset_service, test_asset):
 
 
 def test_get_user_assets(
-    asset_service,
+    asset_repository,
     test_user,
     test_asset,
 ):
     """Test retrieving all assets for a user."""
-    assets = asset_service.get_user_assets(test_user.id)
+    assets = asset_repository.get_user_assets(test_user.id)
 
     assert len(assets) == 1
     assert assets[0].user_id == test_user.id
     assert assets[0].name == test_asset.name
 
 
-def test_update_asset(asset_service, test_asset):
+def test_update_asset(asset_repository, test_asset):
     """Test updating an asset."""
     update_data = AssetUpdate(
         name="Updated Asset",
@@ -74,7 +74,7 @@ def test_update_asset(asset_service, test_asset):
         state_message="Asset update failed",
     )
 
-    updated_asset = asset_service.update_asset(test_asset.id, update_data)
+    updated_asset = asset_repository.update_asset(test_asset.id, update_data)
 
     assert updated_asset.name == "Updated Asset"
     assert len(updated_asset.labels) == 2
@@ -83,16 +83,16 @@ def test_update_asset(asset_service, test_asset):
     assert updated_asset.state_message == "Asset update failed"
 
 
-def test_delete_asset(asset_service, test_asset):
+def test_delete_asset(asset_repository, test_asset):
     """Test deleting an asset."""
-    result = asset_service.delete_asset(test_asset.id)
+    result = asset_repository.delete_asset(test_asset.id)
 
     assert result is True
-    assert asset_service.get_asset(test_asset.id) is None
+    assert asset_repository.get_asset(test_asset.id) is None
 
 
 def test_search_assets(
-    asset_service,
+    asset_repository,
     test_user,
     setup_user,
     test_asset,
@@ -100,25 +100,25 @@ def test_search_assets(
     """Test searching assets with the unified search functionality."""
     # Test search by user_id only
     query = AssetSearchQuery(user_id=test_user.id)
-    results = asset_service.search(query)
+    results = asset_repository.search(query)
     assert len(results) == 1  # All three test assets belong to setup_user
     assert results[0].user_id == test_user.id
 
     # Test search by labels only
     query = AssetSearchQuery(labels={"category": "test"})
-    results = asset_service.search(query)
+    results = asset_repository.search(query)
     assert len(results) == 1  # One asset is a contract
     assert results[0].labels["category"] == "test"
 
     # Test search by state only
     query = AssetSearchQuery(state=AssetState.PENDING.value)
-    results = asset_service.search(query)
+    results = asset_repository.search(query)
     assert len(results) == 1
     assert results[0].state == AssetState.PENDING.value
 
     # Test search by user_id and labels
     query = AssetSearchQuery(user_id=test_user.id, labels={"category": "test"})
-    results = asset_service.search(query)
+    results = asset_repository.search(query)
     assert len(results) == 1
     assert results[0].user_id == test_user.id
     assert results[0].labels["category"] == "test"
@@ -129,7 +129,7 @@ def test_search_assets(
         labels={"category": "test"},
         state=AssetState.PENDING.value,
     )
-    results = asset_service.search(query)
+    results = asset_repository.search(query)
     assert len(results) == 1
     assert results[0].user_id == test_user.id
     assert results[0].labels["category"] == "test"
@@ -137,10 +137,10 @@ def test_search_assets(
 
     # Test pagination
     query = AssetSearchQuery(user_id=test_user.id, limit=2)
-    results = asset_service.search(query)
+    results = asset_repository.search(query)
     assert len(results) == 1
 
     # Test search with no filters (should return all assets)
     query = AssetSearchQuery()
-    results = asset_service.search(query)
+    results = asset_repository.search(query)
     assert len(results) == 1  # All three test assets

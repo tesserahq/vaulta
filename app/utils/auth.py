@@ -5,7 +5,7 @@ from fastapi import HTTPException, status, Request
 from fastapi.security import HTTPBearer
 
 from app.config import get_settings
-from app.services.user_service import UserService
+from app.repositories.user_repository import UserRepository
 
 security = HTTPBearer()
 
@@ -48,7 +48,7 @@ class VerifyToken:
     def __init__(self, db_session):
         self.config = get_settings()
         self.db = db_session  # Store the DB session
-        self.user_service = UserService(self.db)
+        self.user_repository = UserRepository(self.db)
 
         if self.config.oidc_domain is None:
             raise ValueError("oidc domain is not set in the configuration.")
@@ -91,7 +91,7 @@ class VerifyToken:
         user_id = payload["sub"]
 
         # User not in cache or cache was invalid, check database
-        user = self.user_service.get_user_by_external_id(user_id)
+        user = self.user_repository.get_user_by_external_id(user_id)
 
         if user:
             # User exists in database, cache the existence
@@ -121,7 +121,7 @@ class VerifyToken:
         external_id = payload["sub"]
 
         # Onboard the user locally
-        user = self.user_service.onboard_user(
+        user = self.user_repository.onboard_user(
             UserOnboard(
                 external_id=external_id,
                 id=userinfo["id"],

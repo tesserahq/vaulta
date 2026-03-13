@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any
 from uuid import UUID
 from fastapi import UploadFile, HTTPException
-from app.services.asset_service import AssetService
+from app.repositories.asset_repository import AssetRepository
 from app.schemas.asset import (
     AssetCreate,
     AssetUpdate,
@@ -10,13 +10,13 @@ from app.schemas.asset import (
 from app.storage.base import StorageBackend
 from app.constants.asset import AssetState
 from app.config import get_settings
-from app.services.analyzer import DocumentAnalyzer
+from app.processing.document_analyzer import DocumentAnalyzer
 
 
 async def upload_asset(
     file: UploadFile,
     user_id: UUID,
-    asset_service: AssetService,
+    asset_repository: AssetRepository,
     storage: StorageBackend,
     name: Optional[str] = None,
     labels: Optional[Dict[str, Any]] = None,
@@ -28,7 +28,7 @@ async def upload_asset(
     Args:
         file: The asset to upload
         user_id: The ID of the user uploading the asset
-        asset_service: AssetService instance
+        asset_repository: AssetRepository instance
         storage: StorageBackend instance
         name: Optional custom name for the asset (defaults to original filename)
         labels: Optional dictionary of labels to attach to the asset
@@ -65,11 +65,11 @@ async def upload_asset(
     )
 
     # Save file to database
-    asset = asset_service.create_asset(asset_data, user_id)
+    asset = asset_repository.create_asset(asset_data, user_id)
 
     try:
         # Update state to uploading
-        asset_service.update_asset(
+        asset_repository.update_asset(
             asset.id,
             AssetUpdate(
                 state=AssetState.UPLOADING.value,
@@ -102,7 +102,7 @@ async def upload_asset(
 
         # Update asset with extracted data if we have it
         if extracted_data is not None:
-            asset_service.update_asset(
+            asset_repository.update_asset(
                 asset.id,
                 AssetUpdate(extracted_data=extracted_data),
             )
@@ -118,7 +118,7 @@ async def upload_asset(
             serve_url = url  # Fallback to regular URL if serve token not supported
 
         # Update state to completed
-        asset_service.update_asset(
+        asset_repository.update_asset(
             asset.id,
             AssetUpdate(
                 state=AssetState.COMPLETED.value,
@@ -127,7 +127,7 @@ async def upload_asset(
         )
 
         # Refresh asset to get latest extracted_data
-        asset = asset_service.get_asset(asset.id)
+        asset = asset_repository.get_asset(asset.id)
 
         return AssetUploadResponse(
             asset_id=asset.id,
@@ -146,7 +146,7 @@ async def upload_asset(
 
     except Exception as e:
         # Update state to failed
-        asset_service.update_asset(
+        asset_repository.update_asset(
             asset.id,
             AssetUpdate(
                 state=AssetState.FAILED.value,
