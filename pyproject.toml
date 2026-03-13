@@ -63,6 +63,7 @@ cryptography = "^46.0.3"
 # tessera-sdk = { path = "../tessera-sdk-py/", develop = true }
 tessera-sdk = { git = "https://github.com/tesserahq/tessera-sdk-py.git", branch = "main" }
 uvicorn = "0.41.0"
+python-multipart = "^0.0.22"
 
 
 [tool.poetry.group.dev.dependencies]
