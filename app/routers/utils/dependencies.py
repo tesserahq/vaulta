@@ -2,8 +2,8 @@ from fastapi import Depends, HTTPException, UploadFile
 from app.config import get_settings
 from app.models.asset import Asset
 from app.models.client import Client
-from app.services.asset_service import AssetService
-from app.services.client_service import ClientService
+from app.repositories.asset_repository import AssetRepository
+from app.repositories.client_repository import ClientRepository
 from app.db import get_db
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -11,8 +11,8 @@ from uuid import UUID
 
 def get_asset_by_id(asset_id: UUID, db: Session = Depends(get_db)) -> Asset:
     """Get an asset by ID or raise 404."""
-    asset_service = AssetService(db)
-    asset = asset_service.get_asset(asset_id)
+    asset_repository = AssetRepository(db)
+    asset = asset_repository.get_asset(asset_id)
     if not asset:
         raise HTTPException(status_code=404, detail="Asset not found")
     return asset
@@ -31,7 +31,7 @@ def get_client_by_id(client_id: UUID, db: Session = Depends(get_db)) -> Client:
     Raises:
         HTTPException: If the client is not found
     """
-    client = ClientService(db).get_client(client_id)
+    client = ClientRepository(db).get_client(client_id)
     if client is None:
         raise HTTPException(status_code=404, detail="Client not found")
     return client

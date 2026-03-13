@@ -9,7 +9,7 @@ from app.utils.token_utils import derive_secret
 from app.utils.db.filtering import apply_filters
 
 
-class ClientService:
+class ClientRepository:
     def __init__(self, db: Session):
         self.db = db
 

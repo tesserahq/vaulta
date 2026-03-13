@@ -3,7 +3,7 @@ from typing import List
 from uuid import UUID
 from sqlalchemy.orm import Session
 from app.db import get_db
-from app.services.client_service import ClientService
+from app.repositories.client_repository import ClientRepository
 from app.schemas.client import Client, ClientCreate, ClientUpdate, ClientWithSecret
 from app.schemas.common import MessageResponse
 from app.models.user import User
@@ -23,8 +23,8 @@ async def get_clients(
     current_user: User = Depends(get_current_user),
 ):
     """Get a list of clients with pagination."""
-    client_service = ClientService(db)
-    clients = client_service.get_clients(skip=skip, limit=limit)
+    client_repository = ClientRepository(db)
+    clients = client_repository.get_clients(skip=skip, limit=limit)
     return clients
 
 
@@ -35,8 +35,8 @@ async def get_client(
     current_user: User = Depends(get_current_user),
 ):
     """Get a specific client by UUID."""
-    client_service = ClientService(db)
-    client = client_service.get_client(client_id)
+    client_repository = ClientRepository(db)
+    client = client_repository.get_client(client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     return client
@@ -49,8 +49,8 @@ async def get_client_by_client_id(
     current_user: User = Depends(get_current_user),
 ):
     """Get a specific client by client_id (slug)."""
-    client_service = ClientService(db)
-    client = client_service.get_client_by_client_id(client_id)
+    client_repository = ClientRepository(db)
+    client = client_repository.get_client_by_client_id(client_id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     return client
@@ -63,14 +63,14 @@ async def create_client(
     current_user: User = Depends(get_current_user),
 ):
     """Create a new client and return it with the derived secret."""
-    client_service = ClientService(db)
+    client_repository = ClientRepository(db)
 
     # Check if client_id already exists
-    existing_client = client_service.get_client_by_client_id(client.client_id)
+    existing_client = client_repository.get_client_by_client_id(client.client_id)
     if existing_client:
         raise HTTPException(status_code=400, detail="Client ID already exists")
 
-    return client_service.create_client(client)
+    return client_repository.create_client(client)
 
 
 @router.put("/{client_id}", response_model=Client)
@@ -81,17 +81,17 @@ async def update_client(
     current_user: User = Depends(get_current_user),
 ):
     """Update an existing client."""
-    client_service = ClientService(db)
+    client_repository = ClientRepository(db)
 
     # If client_id is being updated, check for uniqueness
     if client_update.client_id and client_update.client_id != client.client_id:
-        duplicate_client = client_service.get_client_by_client_id(
+        duplicate_client = client_repository.get_client_by_client_id(
             client_update.client_id
         )
         if duplicate_client:
             raise HTTPException(status_code=400, detail="Client ID already exists")
 
-    updated_client = client_service.update_client(client.id, client_update)
+    updated_client = client_repository.update_client(client.id, client_update)
     return updated_client
 
 
@@ -102,8 +102,8 @@ async def delete_client(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a client."""
-    client_service = ClientService(db)
-    success = client_service.delete_client(client.id)
+    client_repository = ClientRepository(db)
+    success = client_repository.delete_client(client.id)
     if not success:
         raise HTTPException(status_code=404, detail="Client not found")
     return MessageResponse(
@@ -118,8 +118,8 @@ async def regenerate_client_secret(
     current_user: User = Depends(get_current_user),
 ):
     """Regenerate the secret for a client and return the new secret."""
-    client_service = ClientService(db)
-    client = client_service.regenerate_secret(client.id)
+    client_repository = ClientRepository(db)
+    client = client_repository.regenerate_secret(client.id)
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     return client

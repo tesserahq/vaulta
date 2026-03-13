@@ -9,7 +9,7 @@ from sqlalchemy import or_
 from app.utils.db.filtering import apply_filters
 
 
-class UserService:
+class UserRepository:
     def __init__(self, db: Session):
         self.db = db
 

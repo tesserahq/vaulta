@@ -5,7 +5,7 @@ from app.models.asset import Asset
 from app.schemas.asset import AssetCreate, AssetUpdate, AssetSearchQuery
 
 
-class AssetService:
+class AssetRepository:
     def __init__(self, db: Session):
         self.db = db
 

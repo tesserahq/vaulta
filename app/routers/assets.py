@@ -1,7 +1,6 @@
 from fastapi import APIRouter, UploadFile, Depends, HTTPException, Form, File, Query
 from typing import Optional, List, Dict, Any
 from fastapi.responses import FileResponse
-from app.services import asset_service
 from app.storage.base import StorageBackend
 from app.storage.factory import StorageFactory
 from app.storage.local import LocalStorageBackend
@@ -12,7 +11,7 @@ from app.services.asset_upload import upload_asset
 from app.schemas.asset import AssetSearchQuery, AssetUploadResponse, Asset
 from app.schemas.common import MessageResponse
 from app.models.user import User
-from app.services.asset_service import AssetService
+from app.repositories.asset_repository import AssetRepository
 import json
 from pydantic import BaseModel, Field
 import os
@@ -48,8 +47,8 @@ async def get_all_assets(
     Returns a paginated list of all assets in the system.
     Use skip and limit parameters for pagination.
     """
-    asset_service = AssetService(db)
-    assets = asset_service.search(query=AssetSearchQuery(skip=skip, limit=limit))
+    asset_repository = AssetRepository(db)
+    assets = asset_repository.search(query=AssetSearchQuery(skip=skip, limit=limit))
 
     return assets
 
@@ -81,8 +80,8 @@ async def serve_asset_via_signed_url(
         # Verify the signed URL payload and get the asset ID
         asset_id = verify_signed_url(payload)
 
-        asset_service = AssetService(db)
-        asset = asset_service.get_asset(UUID(asset_id))
+        asset_repository = AssetRepository(db)
+        asset = asset_repository.get_asset(UUID(asset_id))
 
         if not asset:
             raise HTTPException(status_code=404, detail="Asset not found")
@@ -134,8 +133,8 @@ async def download_asset(
         # Verify the token and get the file ID
         asset_id = storage.verify_token(token)
 
-        asset_service = AssetService(db)
-        asset = asset_service.get_asset(UUID(asset_id))
+        asset_repository = AssetRepository(db)
+        asset = asset_repository.get_asset(UUID(asset_id))
 
         if not asset:
             raise HTTPException(status_code=404, detail="Asset not found")
@@ -208,8 +207,8 @@ async def get_assets_by_labels(
             status_code=400, detail="Labels must contain at least one key-value pair"
         )
 
-    asset_service = AssetService(db)
-    assets = asset_service.search(
+    asset_repository = AssetRepository(db)
+    assets = asset_repository.search(
         query=AssetSearchQuery(labels=query.query.labels, skip=skip, limit=limit)
     )
 
@@ -283,12 +282,12 @@ async def upload_asset_endpoint(
                 status_code=400, detail=f"Error parsing labels: {str(e)}"
             )
 
-    asset_service = AssetService(db)
+    asset_repository = AssetRepository(db)
     storage = StorageFactory.get_backend()
     return await upload_asset(
         file=file,
         user_id=UUID(str(current_user.id)),
-        asset_service=asset_service,
+        asset_repository=asset_repository,
         storage=storage,
         name=name,
         labels=parsed_labels,
@@ -430,13 +429,13 @@ async def create_asset_from_url(
             )
 
             # Use the existing upload logic
-            asset_service = AssetService(db)
+            asset_repository = AssetRepository(db)
             storage = StorageFactory.get_backend()
 
             return await upload_asset(
                 file=downloaded_file,
                 user_id=UUID(str(current_user.id)),
-                asset_service=asset_service,
+                asset_repository=asset_repository,
                 storage=storage,
                 name=request.name,
                 labels=request.labels,
@@ -474,7 +473,7 @@ async def delete_asset(
             status_code=403, detail="Not authorized to delete this asset"
         )
 
-    success = AssetService(db).delete_asset(asset.id)
+    success = AssetRepository(db).delete_asset(asset.id)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete asset")
 

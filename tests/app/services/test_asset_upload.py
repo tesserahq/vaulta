@@ -2,15 +2,15 @@ import pytest
 from fastapi import UploadFile
 from io import BytesIO
 from app.services.asset_upload import upload_asset
-from app.services.asset_service import AssetService
+from app.repositories.asset_repository import AssetRepository
 from app.storage.base import StorageBackend
 from app.constants.asset import AssetState
 
 
 @pytest.fixture
-def asset_service(db):
-    """Create a asset service instance for testing."""
-    return AssetService(db)
+def asset_repository(db):
+    """Create an AssetRepository instance for testing."""
+    return AssetRepository(db)
 
 
 class MockStorageBackend(StorageBackend):
@@ -78,12 +78,14 @@ def test_labels():
 
 
 @pytest.mark.asyncio
-async def test_successful_upload(test_asset, setup_user, asset_service, mock_storage):
+async def test_successful_upload(
+    test_asset, setup_user, asset_repository, mock_storage
+):
     """Test successful file upload."""
     response = await upload_asset(
         file=test_asset,
         user_id=setup_user.id,
-        asset_service=asset_service,
+        asset_repository=asset_repository,
         storage=mock_storage,
     )
 
@@ -98,7 +100,7 @@ async def test_successful_upload(test_asset, setup_user, asset_service, mock_sto
     assert response.state_message == "File upload completed successfully"
 
     # Verify file in database
-    file = asset_service.get_asset(response.asset_id)
+    file = asset_repository.get_asset(response.asset_id)
     assert file is not None
     assert file.name == "test.txt"
     assert file.state == AssetState.COMPLETED.value
@@ -106,14 +108,14 @@ async def test_successful_upload(test_asset, setup_user, asset_service, mock_sto
 
 @pytest.mark.asyncio
 async def test_upload_with_custom_name_and_labels(
-    test_asset, setup_user, asset_service, mock_storage, test_labels
+    test_asset, setup_user, asset_repository, mock_storage, test_labels
 ):
     """Test file upload with custom name and labels."""
     custom_name = "Custom File Name"
     response = await upload_asset(
         file=test_asset,
         user_id=setup_user.id,
-        asset_service=asset_service,
+        asset_repository=asset_repository,
         storage=mock_storage,
         name=custom_name,
         labels=test_labels,
@@ -126,26 +128,28 @@ async def test_upload_with_custom_name_and_labels(
     assert response.labels["status"] == "draft"
 
     # Verify file in database
-    file = asset_service.get_asset(response.asset_id)
+    file = asset_repository.get_asset(response.asset_id)
     assert file.name == custom_name
     assert len(file.labels) == 2
 
 
 @pytest.mark.asyncio
-async def test_upload_failure(test_asset, setup_user, asset_service, failing_storage):
+async def test_upload_failure(
+    test_asset, setup_user, asset_repository, failing_storage
+):
     """Test file upload failure handling."""
     with pytest.raises(Exception) as exc_info:
         await upload_asset(
             file=test_asset,
             user_id=setup_user.id,
-            asset_service=asset_service,
+            asset_repository=asset_repository,
             storage=failing_storage,
         )
 
     assert str(exc_info.value) == "Mock storage failure"
 
     # Verify file state is updated to failed
-    assets = asset_service.get_user_assets(setup_user.id)
+    assets = asset_repository.get_user_assets(setup_user.id)
     assert len(assets) == 1
     assert assets[0].state == AssetState.FAILED.value
     assert "Upload failed" in assets[0].state_message
@@ -153,18 +157,18 @@ async def test_upload_failure(test_asset, setup_user, asset_service, failing_sto
 
 @pytest.mark.asyncio
 async def test_upload_state_transitions(
-    test_asset, setup_user, asset_service, mock_storage
+    test_asset, setup_user, asset_repository, mock_storage
 ):
     """Test asset state transitions during upload."""
     response = await upload_asset(
         file=test_asset,
         user_id=setup_user.id,
-        asset_service=asset_service,
+        asset_repository=asset_repository,
         storage=mock_storage,
     )
 
     # Verify final state
-    file = asset_service.get_asset(response.asset_id)
+    file = asset_repository.get_asset(response.asset_id)
     assert file.state == AssetState.COMPLETED.value
 
     # Verify state history (we can't directly test intermediate states,
@@ -174,13 +178,13 @@ async def test_upload_state_transitions(
 
 @pytest.mark.asyncio
 async def test_asset_metadata_handling(
-    test_asset, setup_user, asset_service, mock_storage
+    test_asset, setup_user, asset_repository, mock_storage
 ):
     """Test asset metadata handling during upload."""
     response = await upload_asset(
         file=test_asset,
         user_id=setup_user.id,
-        asset_service=asset_service,
+        asset_repository=asset_repository,
         storage=mock_storage,
     )
 
@@ -191,7 +195,7 @@ async def test_asset_metadata_handling(
     assert response.human_readable_size is not None
 
     # Verify file in database
-    file = asset_service.get_asset(response.asset_id)
+    file = asset_repository.get_asset(response.asset_id)
     assert file.filename == "test.txt"
     assert file.mime_type == "text/plain"
     assert file.size > 0
