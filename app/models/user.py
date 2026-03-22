@@ -1,7 +1,7 @@
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 from sqlalchemy import Index, text
-from tessera_sdk.models import UserMixin
+from tessera_sdk.domain.models import UserMixin
 
 from app.models.mixins import TimestampMixin
 from app.db import Base
