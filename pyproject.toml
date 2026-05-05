@@ -21,7 +21,7 @@ dev = "run:dev"
 
 [tool.poetry.dependencies]
 python = ">=3.14,<3.15"
-fastapi = "v0.135.1"
+fastapi = "v0.136.0"
 python-dotenv = "^1.0.0"
 gunicorn = "25.1.0"
 faker = "40.11.0"
@@ -59,7 +59,7 @@ pillow = "^12.0.0"
 pdf2image = "^1.17.0"
 passporteye = "^2.2.2"
 paddleocr = "^3.3.1"
-cryptography = "^46.0.3"
+cryptography = "^47.0.0"
 # tessera-sdk = { path = "../tessera-sdk-py/", develop = true }
 tessera-sdk = { git = "https://github.com/tesserahq/tessera-sdk-py.git", branch = "main" }
 uvicorn = "0.41.0"
