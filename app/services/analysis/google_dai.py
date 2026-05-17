@@ -5,10 +5,11 @@ from app.services.analysis.base import (
     AnalysisResult,
     DocumentAnalysisBackend,
     FieldValue,
-    is_partial,
+    OcrLine,
 )
 from app.services.analysis.preprocessor import AnalysisPreprocessor
 
+# Canonical mappings for well-known Google DAI entity types.
 _FIELD_MAP: dict[str, str] = {
     "given_names": "given_names",
     "family_name": "surname",
@@ -79,19 +80,30 @@ def _adapt(doc) -> AnalysisResult:
             doc_type = _DOCTYPE_MAP.get(raw, raw)
             doc_type_confidence = entity.confidence
             continue
-        canonical = _FIELD_MAP.get(entity_type)
-        if canonical:
-            fields[canonical] = FieldValue(
-                value=entity.mention_text,
-                confidence=entity.confidence,
-            )
 
-    partial = is_partial(doc_type, fields)
+        value_text = entity.mention_text.strip() if entity.mention_text else ""
+        if not value_text:
+            continue
+
+        canonical = _FIELD_MAP.get(entity_type, entity_type)
+        fields[canonical] = FieldValue(
+            value=value_text,
+            confidence=entity.confidence,
+        )
+
+    # Google DAI exposes the full document text; split into lines for ocr_lines.
+    # Per-line confidence is not natively available, so we use 1.0 as a placeholder.
+    raw_text: str = getattr(doc, "text", "") or ""
+    ocr_lines = [
+        OcrLine(text=line, confidence=1.0)
+        for line in raw_text.splitlines()
+        if line.strip()
+    ]
 
     return AnalysisResult(
         document_type=doc_type,
         document_type_confidence=doc_type_confidence,
         fields=fields,
-        partial=partial,
+        ocr_lines=ocr_lines,
         provider="google_dai",
     )

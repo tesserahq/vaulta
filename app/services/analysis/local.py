@@ -5,7 +5,6 @@ from app.services.analysis.base import (
     AnalysisResult,
     DocumentAnalysisBackend,
     FieldValue,
-    is_partial,
 )
 
 # Maps DocumentAnalyzer attribute names to canonical field names.
@@ -67,12 +66,9 @@ def _adapt(raw: dict) -> AnalysisResult:
                 )
                 break
 
-    partial = is_partial(doc_type, fields)
-
     return AnalysisResult(
         document_type=doc_type,
         document_type_confidence=doc_type_confidence,
         fields=fields,
-        partial=partial,
         provider="local",
     )
