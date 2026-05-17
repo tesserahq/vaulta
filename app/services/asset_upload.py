@@ -1,7 +1,10 @@
+import logging
 from typing import Optional, Dict, Any
 from uuid import UUID
 from fastapi import UploadFile, HTTPException
 from app.repositories.asset_repository import AssetRepository
+
+logger = logging.getLogger(__name__)
 from app.schemas.asset import (
     AssetCreate,
     AssetUpdate,
@@ -11,6 +14,7 @@ from app.storage.base import StorageBackend
 from app.constants.asset import AssetState
 from app.config import get_settings
 from app.services.analysis.base import DocumentAnalysisBackend
+from app.services.summarization.claude import ClaudeSummarizationService
 
 
 async def upload_asset(
@@ -22,6 +26,8 @@ async def upload_asset(
     labels: Optional[Dict[str, Any]] = None,
     extract_data: bool = False,
     analysis_backend: Optional[DocumentAnalysisBackend] = None,
+    summarize: bool = False,
+    summarization_service: Optional[ClaudeSummarizationService] = None,
 ) -> AssetUploadResponse:
     """
     Upload an asset and create an asset record.
@@ -81,26 +87,44 @@ async def upload_asset(
 
         # Extract data from document if requested (before saving to storage)
         extracted_data = None
+        file_content_cache: Optional[bytes] = None
         if extract_data and analysis_backend is not None:
             try:
                 file.file.seek(0)
-                file_content = await file.read()
+                file_content_cache = await file.read()
                 result = await analysis_backend.analyze(
-                    file_content, file.content_type or "application/octet-stream"
+                    file_content_cache, file.content_type or "application/octet-stream"
                 )
                 extracted_data = result.model_dump()
                 file.file.seek(0)
             except Exception:
                 file.file.seek(0)  # Reset file pointer even on error
 
+        # Generate summary if requested (reuses cached file bytes when available)
+        summary = None
+        if summarize and summarization_service is not None:
+            try:
+                if file_content_cache is None:
+                    file.file.seek(0)
+                    file_content_cache = await file.read()
+                    file.file.seek(0)
+                result = await summarization_service.summarize(
+                    file_content_cache, file.content_type or "application/octet-stream"
+                )
+                summary = result.model_dump()
+            except Exception:
+                logger.exception(
+                    "summarization failed for asset %s — summary will be null", asset.id
+                )
+
         # Save file to storage
         await storage.save(asset.id, file)
 
-        # Update asset with extracted data if we have it
-        if extracted_data is not None:
+        # Update asset with extracted data and/or summary if we have them
+        if extracted_data is not None or summary is not None:
             asset_repository.update_asset(
                 asset.id,
-                AssetUpdate(extracted_data=extracted_data),
+                AssetUpdate(extracted_data=extracted_data, summary=summary),
             )
 
         # Get URL for accessing the file
@@ -145,6 +169,7 @@ async def upload_asset(
             state=AssetState.COMPLETED.value,
             state_message="File upload completed successfully",
             extracted_data=asset.extracted_data if asset.extracted_data else None,
+            summary=asset.summary if asset.summary else None,
         )
 
     except Exception as e:

@@ -1,6 +1,7 @@
 import asyncio
 
 from app.processing.document_analyzer import DocumentAnalyzer
+from app.providers import AnalysisProvider
 from app.services.analysis.base import (
     AnalysisResult,
     DocumentAnalysisBackend,
@@ -70,5 +71,5 @@ def _adapt(raw: dict) -> AnalysisResult:
         document_type=doc_type,
         document_type_confidence=doc_type_confidence,
         fields=fields,
-        provider="local",
+        provider=AnalysisProvider.LOCAL,
     )

@@ -32,6 +32,9 @@ class Asset(Base, TimestampMixin):
     extracted_data = Column(
         EncryptedJSONB, default=dict, nullable=True
     )  # Extracted data from the asset (encrypted)
+    summary = Column(
+        EncryptedJSONB, nullable=True
+    )  # On-demand prose summary (encrypted)
 
     # Relationships
     user = relationship("User", back_populates="assets")

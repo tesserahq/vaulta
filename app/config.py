@@ -1,8 +1,11 @@
 import os
-from pydantic import AliasChoices, Field, model_validator
 from typing import Optional
+
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings
-from sqlalchemy.engine.url import make_url, URL
+from sqlalchemy.engine.url import URL, make_url
+
+from app.providers import AnalysisProvider, StorageProvider
 
 DEFAULT_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/vaulta"
 DEFAULT_TEST_DATABASE_URL = "postgresql://postgres:postgres@localhost:5432/vaulta_test"
@@ -42,7 +45,7 @@ class Settings(BaseSettings):
     )  # Optional field
 
     # Storage settings
-    storage_backend: str = "s3"  # "local" or "s3"
+    storage_backend: str = StorageProvider.S3
     local_storage_dir: str = Field(
         default="storage",
         description="Local storage directory path. Can be relative (e.g., 'storage') or absolute (e.g., '/tmp/myfiles')",
@@ -76,7 +79,7 @@ class Settings(BaseSettings):
 
     # Document analysis settings
     analysis_backend: str = Field(
-        default="local", json_schema_extra={"env": "ANALYSIS_BACKEND"}
+        default=AnalysisProvider.LOCAL, json_schema_extra={"env": "ANALYSIS_BACKEND"}
     )
     analysis_max_image_px: int = Field(
         default=2048, json_schema_extra={"env": "ANALYSIS_MAX_IMAGE_PX"}

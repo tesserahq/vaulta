@@ -1,8 +1,11 @@
 from typing import Optional
+
+from app.config import get_settings
+from app.providers import StorageProvider
+
 from .base import StorageBackend
 from .local import LocalStorageBackend
 from .s3 import S3StorageBackend
-from app.config import get_settings
 
 
 class StorageFactory:
@@ -31,7 +34,9 @@ class StorageFactory:
             StorageBackend: A new storage backend instance
         """
         settings = get_settings()
-        if settings.storage_backend == "s3":
+        provider = settings.storage_backend
+
+        if provider == StorageProvider.S3:
             return S3StorageBackend(
                 bucket_name=settings.s3_bucket_name,
                 region_name=settings.s3_region_name,
@@ -39,11 +44,16 @@ class StorageFactory:
                 aws_access_key_id=settings.aws_access_key_id,
                 aws_secret_access_key=settings.aws_secret_access_key,
             )
-        else:
+        if provider == StorageProvider.LOCAL:
             return LocalStorageBackend(
                 storage_dir=settings.local_storage_dir,
                 public_url_prefix=settings.public_url_prefix,
             )
+
+        raise ValueError(
+            f"Unknown storage provider: {provider!r}. "
+            f"Valid options: {', '.join(StorageProvider)}"
+        )
 
     @classmethod
     def reset(cls) -> None:
