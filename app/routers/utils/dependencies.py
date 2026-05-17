@@ -1,12 +1,18 @@
+from typing import Optional
+from uuid import UUID
+
 from fastapi import Depends, HTTPException, UploadFile
+from sqlalchemy.orm import Session
+
 from app.config import get_settings
+from app.db import get_db
 from app.models.asset import Asset
 from app.models.client import Client
+from app.repositories.analysis_config_repository import AnalysisConfigRepository
 from app.repositories.asset_repository import AssetRepository
 from app.repositories.client_repository import ClientRepository
-from app.db import get_db
-from sqlalchemy.orm import Session
-from uuid import UUID
+from app.services.analysis.base import DocumentAnalysisBackend
+from app.services.analysis.factory import AnalysisFactory
 
 
 def get_asset_by_id(asset_id: UUID, db: Session = Depends(get_db)) -> Asset:
@@ -56,3 +62,31 @@ def validate_file_size(file: UploadFile) -> UploadFile:
 def get_validated_file(file: UploadFile = Depends(validate_file_size)) -> UploadFile:
     """Get a validated file that passes size checks."""
     return file
+
+
+def get_analysis_backend(
+    config_id: Optional[UUID],
+    db: Session,
+) -> Optional[DocumentAnalysisBackend]:
+    """Resolve a DocumentAnalysisBackend from an optional config_id.
+
+    If config_id is provided, fetches that AnalysisConfig row and instantiates its provider.
+    If config_id is None, uses the DB default config; falls back to the settings singleton.
+    Returns None only when no configuration exists at all.
+    """
+    repo = AnalysisConfigRepository(db)
+
+    if config_id is not None:
+        config = repo.get_by_id(config_id)
+        if config is None:
+            raise HTTPException(status_code=404, detail="AnalysisConfig not found")
+        return AnalysisFactory.get_backend(config.provider, config.provider_params)
+
+    default_config = repo.get_default()
+    if default_config is not None:
+        return AnalysisFactory.get_backend(
+            default_config.provider, default_config.provider_params
+        )
+
+    # No DB config — fall back to settings singleton
+    return AnalysisFactory.get_backend()

@@ -74,6 +74,26 @@ class Settings(BaseSettings):
     aws_access_key_id: Optional[str] = None
     aws_secret_access_key: Optional[str] = None
 
+    # Document analysis settings
+    analysis_backend: str = Field(
+        default="local", json_schema_extra={"env": "ANALYSIS_BACKEND"}
+    )
+    analysis_max_image_px: int = Field(
+        default=2048, json_schema_extra={"env": "ANALYSIS_MAX_IMAGE_PX"}
+    )
+    google_dai_processor_id: Optional[str] = Field(
+        default=None, json_schema_extra={"env": "GOOGLE_DAI_PROCESSOR_ID"}
+    )
+    google_application_credentials: Optional[str] = Field(
+        default=None, json_schema_extra={"env": "GOOGLE_APPLICATION_CREDENTIALS"}
+    )
+    anthropic_api_key: Optional[str] = Field(
+        default=None, json_schema_extra={"env": "ANTHROPIC_API_KEY"}
+    )
+    bedrock_region: Optional[str] = Field(
+        default=None, json_schema_extra={"env": "BEDROCK_REGION"}
+    )
+
     oidc_domain: str = "test.oidc.com"
     oidc_api_audience: str = "https://test-api"
     oidc_issuer: str = "https://test.oidc.com/"
