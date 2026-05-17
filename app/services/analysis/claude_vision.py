@@ -3,6 +3,7 @@ import base64
 import json
 from typing import Any, Optional
 
+from app.providers import AnalysisProvider
 from app.services.analysis.base import (
     AnalysisResult,
     DocumentAnalysisBackend,
@@ -144,5 +145,5 @@ def _adapt(raw: dict) -> AnalysisResult:
         document_type_confidence=float(raw.get("document_type_confidence", 0.0)),
         fields=fields,
         ocr_lines=ocr_lines,
-        provider="claude",
+        provider=AnalysisProvider.CLAUDE,
     )

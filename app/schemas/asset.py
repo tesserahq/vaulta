@@ -49,6 +49,8 @@ class AssetUpdate(BaseModel):
     state_message: Optional[str] = None
     extracted_data: Optional[Dict[str, Any]] = None
     """Extracted data from the asset (encrypted in database)."""
+    summary: Optional[Dict[str, Any]] = None
+    """On-demand prose summary (encrypted in database)."""
 
     @field_validator("state")
     @classmethod
@@ -114,6 +116,7 @@ class AssetUploadResponse(BaseModel):
     """Message describing the current state."""
 
     extracted_data: Optional[Dict[str, Any]] = None
+    summary: Optional[Dict[str, Any]] = None
 
     model_config = ConfigDict(from_attributes=True)
 

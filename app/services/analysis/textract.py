@@ -2,6 +2,7 @@ import asyncio
 import re
 from typing import Optional
 
+from app.providers import AnalysisProvider
 from app.services.analysis.base import (
     AnalysisResult,
     DocumentAnalysisBackend,
@@ -94,7 +95,7 @@ def _adapt(response: dict) -> AnalysisResult:
             document_type_confidence=0.0,
             fields={},
             ocr_lines=[],
-            provider="textract",
+            provider=AnalysisProvider.TEXTRACT,
             raw_response=response,
         )
 
@@ -134,6 +135,6 @@ def _adapt(response: dict) -> AnalysisResult:
         document_type_confidence=doc_type_confidence,
         fields=fields,
         ocr_lines=ocr_lines,
-        provider="textract",
+        provider=AnalysisProvider.TEXTRACT,
         raw_response=response,
     )

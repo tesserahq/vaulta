@@ -1,6 +1,6 @@
 # Document Analysis Configuration Guide
 
-Vaulta can extract structured data from uploaded identity documents (passports, driver's licenses, national IDs) using a pluggable provider system. Each upload can use a different provider by referencing an `AnalysisConfig` record.
+Vaulta can extract structured data from uploaded documents (passports, driver's licenses, national IDs, credit cards, and more) using a pluggable provider system. Each upload can use a different provider by referencing an `AnalysisConfig` record.
 
 ## How it works
 
@@ -45,6 +45,37 @@ Textract reuses the same AWS credentials used for S3 storage.
 | `GOOGLE_DAI_PROCESSOR_ID` | Yes | Full processor resource name, e.g. `projects/123/locations/us/processors/abc`. |
 | `GOOGLE_APPLICATION_CREDENTIALS` | No | Path to a service account JSON key file. Omit to use Application Default Credentials. |
 
+`GOOGLE_APPLICATION_CREDENTIALS` (or `credentials_path` in `provider_params`) must point to a **service account JSON key** downloaded from Google Cloud—not a user OAuth token.
+
+#### GCP setup
+
+1. **Create or select a project** in the [Google Cloud Console](https://console.cloud.google.com/).
+
+2. **Enable the API** — APIs & Services → Library → search **Cloud Document AI API** → Enable.
+
+3. **Create a processor** — go to the [Document AI processors page](https://console.cloud.google.com/ai/document-ai/processors) and create a **Document OCR** processor. Copy the full resource name for `GOOGLE_DAI_PROCESSOR_ID`, e.g. `projects/123456789/locations/us/processors/abcdef123456`. Processors must be in a [supported region](https://cloud.google.com/document-ai/docs/regions) (commonly `us` or `eu` in the path).
+
+   > **Processor type:** Use **Document OCR** (not Identity Document Proofing or Custom Document Extractor). Document OCR does not require entity types to be declared upfront and returns all detected text via the OCR layer, which Vaulta surfaces in `ocr_lines`. Structured `fields` are extracted from the entities the processor returns. Custom Extractor processors require entity types to be configured both in GCP and in `provider_params` before they will accept requests.
+
+4. **Create a service account** — IAM & Admin → Service Accounts → Create service account (e.g. `vaulta-document-ai`).
+
+5. **Grant permissions** — Assign a role that can call Document AI on your project, for example **Document AI API User** (`roles/documentai.apiUser`).
+
+6. **Download a JSON key** — Open the service account → Keys → Add key → Create new key → JSON. Store the file securely; treat it like a password.
+
+7. **Configure Vaulta** — set the path to that file and your processor ID:
+
+   ```bash
+   GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/service-account.json
+   GOOGLE_DAI_PROCESSOR_ID=projects/.../locations/us/processors/...
+   ```
+
+   Or pass overrides per `AnalysisConfig` via `provider_params` (`credentials_path`, `processor_id`).
+
+If you omit `GOOGLE_APPLICATION_CREDENTIALS`, the Google client uses **Application Default Credentials** (e.g. `gcloud auth application-default login` locally, or the metadata service on GCE/GKE/Cloud Run).
+
+Document AI is billed per processed page; ensure billing is enabled on the project.
+
 ### Claude Vision (Anthropic API)
 
 | Variable | Required | Description |
@@ -71,7 +102,7 @@ Set `BEDROCK_REGION` to use Claude via Bedrock instead of the direct Anthropic A
 # AWS Textract or Bedrock
 poetry add boto3
 
-# Google Document AI
+# Google Document AI (see GCP setup under Google Document AI above)
 poetry add google-cloud-documentai
 
 # Claude via Anthropic API
@@ -176,6 +207,9 @@ Omitting `config_id` uses the config marked `is_default=true`.
 |---|---|
 | `processor_id` | Override `GOOGLE_DAI_PROCESSOR_ID`. |
 | `credentials_path` | Override `GOOGLE_APPLICATION_CREDENTIALS`. |
+| `entity_types` | Required only for **Custom Document Extractor** processors. List the entity type names that were defined in your processor schema (e.g. `["invoice_id", "total"]`). Not needed for Document OCR. |
+
+If you see `Must have at least one entity type` in the logs, your processor is a Custom Document Extractor — either switch to a **Document OCR** processor, or list the expected entity types in `provider_params.entity_types`.
 
 ### claude
 
@@ -193,35 +227,55 @@ A successful extraction stores a JSON object on the asset under `extracted_data`
 {
   "document_type": "passport",
   "document_type_confidence": 0.98,
-  "partial": false,
   "provider": "textract",
   "fields": {
     "given_names":     { "value": "Jane",       "confidence": 0.99 },
     "surname":         { "value": "Smith",       "confidence": 0.99 },
     "date_of_birth":   { "value": "1990-05-15",  "confidence": 0.97 },
     "expiration_date": { "value": "2030-05-14",  "confidence": 0.98 },
-    "document_number": { "value": "AB1234567",   "confidence": 0.99 }
-  }
+    "document_number": { "value": "AB1234567",   "confidence": 0.99 },
+    "city":            { "value": "Springfield", "confidence": 0.95 }
+  },
+  "ocr_lines": [
+    { "text": "JANE SMITH",    "confidence": 0.99 },
+    { "text": "1990-05-15",   "confidence": 0.97 },
+    { "text": "AB1234567",    "confidence": 0.99 }
+  ]
 }
 ```
 
-`partial: true` indicates that one or more expected fields for the detected document type were missing from the response.
+- **`fields`** — structured key/value pairs. Where a provider returns a well-known field type (e.g. `FIRST_NAME`, `family_name`), Vaulta normalises it to a canonical name. Any field the provider returns that has no canonical mapping is included under its raw snake_cased key. Only non-empty values are included.
+- **`ocr_lines`** — every line of text detected on the document, in order. This captures values (card numbers, phone numbers, free-form text) that may not appear in `fields`. Confidence is provider-native where available; `1.0` is used as a placeholder for Google DAI.
+- **`document_type`** — a free string. Well-known types are normalised (e.g. `"DRIVER LICENSE FRONT"` → `"drivers_license"`); unrecognised types are passed through as snake_case.
 
 ### Canonical field names
 
-All providers normalize their output to these field names:
+The following field names are used when a provider returns a recognised field type. Any provider-specific field not listed here is included in `fields` under its raw snake_cased key, so no data is silently dropped.
 
-| Field | Description |
-|---|---|
-| `given_names` | First / given name(s) |
-| `surname` | Family / last name |
-| `middle_name` | Middle name (Textract only) |
-| `date_of_birth` | Date of birth |
-| `expiration_date` | Document expiry date |
-| `document_number` | ID / passport / license number |
-| `address` | Registered address |
-| `sex` | Sex (Google DAI only) |
-| `nationality` | Nationality (Google DAI only) |
+| Field | Description | Providers |
+|---|---|---|
+| `given_names` | First / given name(s) | all |
+| `surname` | Family / last name | all |
+| `middle_name` | Middle name | Textract, Claude |
+| `date_of_birth` | Date of birth | all |
+| `expiration_date` | Document expiry date | all |
+| `document_number` | ID / passport / license number | all |
+| `address` | Registered address | all |
+| `city` | City from address | Textract |
+| `state` | State from address | Textract |
+| `postal_code` | Postal / ZIP code | Textract |
+| `state_name` | Full state name | Textract |
+| `county` | County | Textract |
+| `place_of_birth` | Place of birth | Textract |
+| `suffix` | Name suffix | Textract |
+| `class` | License class | Textract |
+| `restrictions` | License restrictions | Textract |
+| `endorsements` | License endorsements | Textract |
+| `veteran` | Veteran indicator | Textract |
+| `mrz_code` | Machine-readable zone | Textract |
+| `sex` | Sex | Google DAI, Claude |
+| `nationality` | Nationality | Google DAI, Claude |
+| `issuing_state` | Issuing country/state | Google DAI, Claude |
 
 ## Supported input formats
 

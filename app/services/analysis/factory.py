@@ -1,8 +1,7 @@
 from typing import Optional
 
+from app.providers import AnalysisProvider
 from app.services.analysis.base import DocumentAnalysisBackend
-
-_VALID_PROVIDERS = ("local", "textract", "google_dai", "claude")
 
 
 class AnalysisFactory:
@@ -39,12 +38,12 @@ class AnalysisFactory:
 
         settings = get_settings()
 
-        if provider == "local":
+        if provider == AnalysisProvider.LOCAL:
             from app.services.analysis.local import LocalAnalysisBackend
 
             return LocalAnalysisBackend()
 
-        elif provider == "textract":
+        if provider == AnalysisProvider.TEXTRACT:
             from app.services.analysis.textract import TextractAnalysisBackend
 
             return TextractAnalysisBackend(
@@ -56,7 +55,7 @@ class AnalysisFactory:
                 max_image_px=settings.analysis_max_image_px,
             )
 
-        elif provider == "google_dai":
+        if provider == AnalysisProvider.GOOGLE_DAI:
             from app.services.analysis.google_dai import GoogleDAIAnalysisBackend
 
             return GoogleDAIAnalysisBackend(
@@ -68,7 +67,7 @@ class AnalysisFactory:
                 max_image_px=settings.analysis_max_image_px,
             )
 
-        elif provider == "claude":
+        if provider == AnalysisProvider.CLAUDE:
             from app.services.analysis.claude_vision import ClaudeVisionAnalysisBackend
 
             return ClaudeVisionAnalysisBackend(
@@ -78,11 +77,10 @@ class AnalysisFactory:
                 max_image_px=settings.analysis_max_image_px,
             )
 
-        else:
-            raise ValueError(
-                f"Unknown analysis provider: {provider!r}. "
-                f"Valid options: {', '.join(_VALID_PROVIDERS)}"
-            )
+        raise ValueError(
+            f"Unknown analysis provider: {provider!r}. "
+            f"Valid options: {', '.join(AnalysisProvider)}"
+        )
 
     @classmethod
     def reset(cls) -> None:
