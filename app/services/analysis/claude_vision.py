@@ -7,7 +7,7 @@ from app.services.analysis.base import (
     AnalysisResult,
     DocumentAnalysisBackend,
     FieldValue,
-    is_partial,
+    OcrLine,
 )
 from app.services.analysis.preprocessor import AnalysisPreprocessor
 
@@ -15,26 +15,28 @@ _DEFAULT_DIRECT_MODEL = "claude-sonnet-4-6"
 _DEFAULT_BEDROCK_MODEL = "anthropic.claude-sonnet-4-5-20251001-v1:0"
 
 _SYSTEM_PROMPT = (
-    "You are a document analysis assistant. Analyze the identity document image and extract "
+    "You are a document analysis assistant. Analyze the document image and extract "
     "structured data. Return only a JSON object — no markdown, no explanation."
 )
 
 _USER_PROMPT = """\
-Extract data from this identity document and return a JSON object with this exact structure:
+Extract data from this document and return a JSON object with this exact structure:
 {
-  "document_type": "<passport|drivers_license|national_id|social_security_card|unknown>",
+  "document_type": "<descriptive type string, e.g. passport, drivers_license, national_id, credit_card, insurance_card, unknown>",
   "document_type_confidence": <0.0-1.0>,
   "fields": {
-    "<field_name>": {"value": "<extracted value or null>", "confidence": <0.0-1.0>}
-  }
+    "<snake_case_field_name>": {"value": "<extracted value or null>", "confidence": <0.0-1.0>}
+  },
+  "ocr_lines": [
+    {"text": "<visible text line>", "confidence": <0.0-1.0>}
+  ]
 }
 
-Valid field names: surname, given_names, middle_name, date_of_birth, expiration_date,
-document_number, address, city, state, postal_code, sex, nationality, issuing_state, ssn
-
 Rules:
-- Dates in YYYY-MM-DD format
-- Only include fields that are visible on the document
+- Extract ALL fields visible on the document using snake_case names
+- Dates in YYYY-MM-DD format where possible
+- Only include fields that are actually visible; omit fields with no visible value
+- ocr_lines should contain every distinct line of text visible on the document
 - Return only the JSON object"""
 
 
@@ -54,7 +56,6 @@ class ClaudeVisionAnalysisBackend(DocumentAnalysisBackend):
         )
         self._preprocessor = AnalysisPreprocessor(max_image_px=max_image_px)
 
-        # Construct the appropriate client once at initialization.
         if bedrock_region:
             import boto3
 
@@ -122,15 +123,26 @@ def _adapt(raw: dict) -> AnalysisResult:
 
     for name, fv in raw.get("fields", {}).items():
         if isinstance(fv, dict):
-            fields[name] = FieldValue(
-                value=fv.get("value"),
-                confidence=float(fv.get("confidence", 0.8)),
-            )
+            value = fv.get("value")
+            if value is not None and str(value).strip():
+                fields[name] = FieldValue(
+                    value=str(value),
+                    confidence=float(fv.get("confidence", 0.8)),
+                )
+
+    ocr_lines = [
+        OcrLine(
+            text=entry["text"],
+            confidence=float(entry.get("confidence", 1.0)),
+        )
+        for entry in raw.get("ocr_lines", [])
+        if isinstance(entry, dict) and entry.get("text", "").strip()
+    ]
 
     return AnalysisResult(
         document_type=doc_type,
         document_type_confidence=float(raw.get("document_type_confidence", 0.0)),
         fields=fields,
-        partial=is_partial(doc_type, fields),
+        ocr_lines=ocr_lines,
         provider="claude",
     )
