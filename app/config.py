@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", json_schema_extra={"env": "LOG_LEVEL"})
     disable_auth: bool = Field(default=False, json_schema_extra={"env": "DISABLE_AUTH"})
     identies_host: str = Field(
-        default="https://identies.estate-buddy.com",
+        default="https://identies.com",
         json_schema_extra={"env": "IDENTIES_HOST"},
     )
     # Master secret key used for signing URLs and generating secure tokens
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     )  # Optional field
 
     # Storage settings
-    storage_backend: str = "local"  # "local" or "s3"
+    storage_backend: str = "s3"  # "local" or "s3"
     local_storage_dir: str = Field(
         default="storage",
         description="Local storage directory path. Can be relative (e.g., 'storage') or absolute (e.g., '/tmp/myfiles')",
@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     )
 
     # S3 settings
-    s3_bucket_name: str = ""
+    s3_bucket_name: str = "vaulta"
     s3_region_name: str = "us-east-1"
     s3_endpoint_url: Optional[str] = None
     aws_access_key_id: Optional[str] = None

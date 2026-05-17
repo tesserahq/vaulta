@@ -39,10 +39,6 @@ class MockStorageBackend(StorageBackend):
             return True
         return False
 
-    def verify_token(self, token: str, max_age: int = 3600) -> str:
-        """Mock token verification."""
-        return token
-
 
 @pytest.fixture
 def mock_storage():

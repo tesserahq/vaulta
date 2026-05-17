@@ -9,6 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from app.db import Base, get_db
 from app.main import create_app
 from starlette.middleware.base import BaseHTTPMiddleware
+import os
 
 pytest_plugins = [
     "tests.fixtures.user_fixtures",
@@ -17,6 +18,8 @@ pytest_plugins = [
 ]
 
 logger = logging.getLogger(__name__)
+
+os.environ["ENV"] = "test"
 
 
 @pytest.fixture(scope="session", autouse=True)

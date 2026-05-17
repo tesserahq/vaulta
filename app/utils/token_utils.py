@@ -108,10 +108,10 @@ def verify_signed_url(payload: str, secret: Optional[str] = None) -> str:
         if current_time > expires_at:
             raise HTTPException(status_code=403, detail="URL has expired")
 
-        # Derive the secret using the client_id and master secret
+        # Derive the client-specific secret — must match derive_secret(client_id)
+        # which is what the Vaulta SDK hands to sign_serve_url as client_secret.
         derived_secret = derive_secret(client_id, secret)
 
-        # Reconstruct payload and verify signature
         payload_data = f"{asset_id}.{client_id}.{expires_at}"
         expected_signature = hmac.new(
             derived_secret.encode(), payload_data.encode(), hashlib.sha256
