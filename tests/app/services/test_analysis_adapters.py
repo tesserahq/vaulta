@@ -105,7 +105,10 @@ class TestTextractAdapt:
                     "IdentityDocumentFields": [
                         {
                             "Type": {"Text": "ID_TYPE"},
-                            "ValueDetection": {"Text": "SOME EXOTIC CARD", "Confidence": 80.0},
+                            "ValueDetection": {
+                                "Text": "SOME EXOTIC CARD",
+                                "Confidence": 80.0,
+                            },
                         }
                     ],
                     "Blocks": [],
@@ -279,6 +282,9 @@ class TestClaudeVisionAdapt:
 
     def test_arbitrary_field_names_pass_through(self):
         raw = self._raw()
-        raw["fields"]["card_number"] = {"value": "4273 6706 0864 7972", "confidence": 0.99}
+        raw["fields"]["card_number"] = {
+            "value": "4273 6706 0864 7972",
+            "confidence": 0.99,
+        }
         result = _claude_adapt(raw)
         assert result.fields["card_number"].value == "4273 6706 0864 7972"
