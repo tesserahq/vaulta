@@ -91,7 +91,9 @@ class TestAssetsRouter:
         assert response.status_code == 422  # Validation error for invalid UUID
 
     @patch("httpx.AsyncClient.get")
-    def test_create_asset_from_url_success(self, mock_get, client, mock_storage_factory):
+    def test_create_asset_from_url_success(
+        self, mock_get, client, mock_storage_factory
+    ):
         """Test downloading an asset from URL successfully."""
         # Mock the HTTP response
         mock_response = AsyncMock()
@@ -173,7 +175,9 @@ class TestAssetsRouter:
         )
 
     @patch("httpx.AsyncClient.get")
-    def test_create_asset_from_url_minimal_request(self, mock_get, client, mock_storage_factory):
+    def test_create_asset_from_url_minimal_request(
+        self, mock_get, client, mock_storage_factory
+    ):
         """Test downloading an asset with minimal request (only URL)."""
         # Mock the HTTP response
         mock_response = AsyncMock()
