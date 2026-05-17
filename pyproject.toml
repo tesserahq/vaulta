@@ -64,7 +64,7 @@ paddleocr = "^3.3.1"
 cryptography = "^48.0.0"
 # tessera-sdk = { path = "../tessera-sdk-py/", develop = true }
 tessera-sdk = { git = "https://github.com/tesserahq/tessera-sdk-py.git", branch = "main" }
-uvicorn = "0.41.0"
+uvicorn = "0.47.0"
 python-multipart = "^0.0.22"
 
 
