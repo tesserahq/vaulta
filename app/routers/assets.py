@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, Depends, HTTPException, Form, File, Query
 from typing import Optional, List, Dict, Any
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from app.storage.base import StorageBackend
 from app.storage.factory import StorageFactory
 from app.storage.local import LocalStorageBackend
@@ -74,12 +74,6 @@ async def serve_asset_via_signed_url(
     db: Session = Depends(get_db),
 ):
     """Serve a file via signed URL payload for public access."""
-    if not isinstance(storage, LocalStorageBackend):
-        raise HTTPException(
-            status_code=400,
-            detail="Signed URL serving is only supported with local storage",
-        )
-
     try:
         # Verify the signed URL payload and get the asset ID
         asset_id = verify_signed_url(payload)
@@ -90,30 +84,48 @@ async def serve_asset_via_signed_url(
         if not asset:
             raise HTTPException(status_code=404, detail="Asset not found")
 
-        # Get the file path
-        file_path = storage.private_dir / asset_id
+        if isinstance(storage, LocalStorageBackend):
+            file_path = storage.private_dir / asset_id
 
-        if not file_path.exists():
-            raise HTTPException(status_code=404, detail="Asset not found")
+            if not file_path.exists():
+                raise HTTPException(status_code=404, detail="Asset not found")
 
-        # Get file metadata for headers
-        stat_info = os.stat(file_path)
-        last_modified = datetime.fromtimestamp(stat_info.st_mtime)
+            stat_info = os.stat(file_path)
+            last_modified = datetime.fromtimestamp(stat_info.st_mtime)
+            etag = f'"{stat_info.st_size}-{int(stat_info.st_mtime)}"'
 
-        # Generate ETag based on file size and modification time
-        etag = f'"{stat_info.st_size}-{int(stat_info.st_mtime)}"'
+            return FileResponse(
+                file_path,
+                media_type=str(asset.mime_type),
+                filename=str(asset.filename),
+                headers={
+                    "Content-Disposition": f"inline; filename={asset.filename}",
+                    "Cache-Control": "public, max-age=31536000, immutable",
+                    "ETag": etag,
+                    "Last-Modified": last_modified.strftime(
+                        "%a, %d %b %Y %H:%M:%S GMT"
+                    ),
+                },
+            )
 
-        return FileResponse(
-            file_path,
+        # For S3 and other backends: proxy the bytes through the server.
+        # This avoids exposing presigned URLs to clients and works with existing /serve/ tokens.
+        presigned_url = await storage.get_url(asset_id)
+
+        async def stream_from_s3():
+            async with httpx.AsyncClient() as s3_client:
+                async with s3_client.stream("GET", presigned_url) as s3_response:
+                    async for chunk in s3_response.aiter_bytes(chunk_size=65536):
+                        yield chunk
+
+        return StreamingResponse(
+            stream_from_s3(),
             media_type=str(asset.mime_type),
-            filename=str(asset.filename),
             headers={
                 "Content-Disposition": f"inline; filename={asset.filename}",
-                "Cache-Control": "public, max-age=31536000, immutable",
-                "ETag": etag,
-                "Last-Modified": last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT"),
             },
         )
+
     except HTTPException:
         raise
     except Exception as e:

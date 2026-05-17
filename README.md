@@ -21,12 +21,6 @@
 - Serving private media through signed links
 - Reusable storage backend for microservices
 
-## Coming Soon
-
-- UI for file browsing and access control
-- Support for Google Cloud Storage and MinIO
-- File expiration and audit logging
-
 # Vaulta
 
 Asset management API for Estate Buddy.
@@ -76,6 +70,12 @@ If you're getting 413 "Payload Too Large" errors:
 For comprehensive documentation on all configuration parameters, server settings, and troubleshooting, see:
 **[File Upload Configuration Guide](docs/file_upload_configuration.md)**
 
+## Document Analysis
+
+Vaulta can extract structured data from identity documents (passports, driver's licenses, national IDs) on upload. Four provider backends are supported: a built-in local parser, AWS Textract, Google Document AI, and Claude Vision.
+
+See **[Document Analysis Configuration Guide](docs/document_analysis.md)** for provider setup, required environment variables, and the `AnalysisConfig` API reference.
+
 ## Development
 
 ### Prerequisites
@@ -87,22 +87,26 @@ For comprehensive documentation on all configuration parameters, server settings
 ### Setup
 
 1. Install dependencies:
+
 ```bash
 poetry install
 ```
 
 2. Set up environment variables:
+
 ```bash
 cp .env.example .env
 # Edit .env with your configuration
 ```
 
 3. Run migrations:
+
 ```bash
 alembic upgrade head
 ```
 
 4. Start the development server:
+
 ```bash
 poetry run dev
 ```
@@ -112,12 +116,14 @@ The API will be available at `http://localhost:8000`
 ## API Documentation
 
 Once the server is running, you can access:
+
 - Interactive API docs: `http://localhost:8000/docs`
 - OpenAPI schema: `http://localhost:8000/openapi.json`
 
 ## Testing
 
 Run tests with:
+
 ```bash
 poetry run pytest
 ```

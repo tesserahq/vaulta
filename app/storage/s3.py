@@ -29,40 +29,37 @@ class S3StorageBackend(StorageBackend):
         )
 
     async def save(
-        self, filename: str, file: UploadFile, is_public: bool = False
+        self, asset_id: str, file: UploadFile, is_public: bool = False
     ) -> str:
         """Save a file to S3."""
         try:
-            # Set ACL based on public/private status
             extra_args = {"ACL": "public-read"} if is_public else {}
 
-            # Upload the file
-            self.s3.upload_assetobj(
+            self.s3.upload_fileobj(
                 file.file,
                 self.bucket_name,
-                filename,
+                str(asset_id),
                 ExtraArgs=extra_args,
             )
 
-            return filename
+            return asset_id
         except ClientError as e:
             raise HTTPException(
                 status_code=500, detail=f"Failed to upload file to S3: {str(e)}"
             )
 
     async def get_url(
-        self, filename: str, is_public: bool = False, expires_in: int = 3600
+        self, asset_id: str, is_public: bool = False, expires_in: int = 3600
     ) -> str:
         """Get a URL for accessing the file."""
         try:
+            asset_id = str(asset_id)
             if is_public:
-                # For public files, return the direct S3 URL
-                return f"https://{self.bucket_name}.s3.amazonaws.com/{filename}"
+                return f"https://{self.bucket_name}.s3.amazonaws.com/{asset_id}"
             else:
-                # For private files, generate a presigned URL
                 return self.s3.generate_presigned_url(
                     "get_object",
-                    Params={"Bucket": self.bucket_name, "Key": filename},
+                    Params={"Bucket": self.bucket_name, "Key": asset_id},
                     ExpiresIn=expires_in,
                 )
         except ClientError as e:
@@ -70,10 +67,10 @@ class S3StorageBackend(StorageBackend):
                 status_code=500, detail=f"Failed to generate URL: {str(e)}"
             )
 
-    async def delete(self, filename: str) -> bool:
+    async def delete(self, asset_id: str) -> bool:
         """Delete a file from S3."""
         try:
-            self.s3.delete_object(Bucket=self.bucket_name, Key=filename)
+            self.s3.delete_object(Bucket=self.bucket_name, Key=str(asset_id))
             return True
         except ClientError:
             return False

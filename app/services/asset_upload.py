@@ -106,12 +106,19 @@ async def upload_asset(
         # Get URL for accessing the file
         url = await storage.get_url(asset.id)
 
-        # Generate serve URL for public access
-        if hasattr(storage, "generate_serve_token"):
-            serve_token = storage.generate_serve_token(str(asset.id))
-            serve_url = f"/serve/{serve_token}"
+        # serve_url is the backend-native access URL.
+        # Local storage: a /serve/{token} path served by this API.
+        # S3 and other backends: the direct presigned URL (no server hop needed).
+        from app.storage.local import LocalStorageBackend
+
+        if isinstance(storage, LocalStorageBackend):
+            if hasattr(storage, "generate_serve_token"):
+                serve_token = storage.generate_serve_token(str(asset.id))
+                serve_url = f"/serve/{serve_token}"
+            else:
+                serve_url = url
         else:
-            serve_url = url  # Fallback to regular URL if serve token not supported
+            serve_url = url
 
         # Update state to completed
         asset_repository.update_asset(
