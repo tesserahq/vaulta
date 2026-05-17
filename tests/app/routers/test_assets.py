@@ -1,7 +1,28 @@
 import pytest
 from uuid import uuid4
-from unittest.mock import patch, AsyncMock, Mock
+from unittest.mock import patch, AsyncMock, Mock, MagicMock
 import httpx
+from fastapi import UploadFile
+
+
+class MockStorageBackend:
+    """Minimal storage mock for router tests — avoids hitting real S3."""
+
+    async def save(self, asset_id, file, **kwargs):
+        return str(asset_id)
+
+    async def get_url(self, asset_id, **kwargs):
+        return f"https://mock-storage.example.com/{asset_id}"
+
+    async def delete(self, asset_id, **kwargs):
+        return True
+
+
+@pytest.fixture
+def mock_storage_factory():
+    backend = MockStorageBackend()
+    with patch("app.storage.factory.StorageFactory.get_backend", return_value=backend):
+        yield backend
 
 
 class TestAssetsRouter:
@@ -70,7 +91,7 @@ class TestAssetsRouter:
         assert response.status_code == 422  # Validation error for invalid UUID
 
     @patch("httpx.AsyncClient.get")
-    def test_create_asset_from_url_success(self, mock_get, client):
+    def test_create_asset_from_url_success(self, mock_get, client, mock_storage_factory):
         """Test downloading an asset from URL successfully."""
         # Mock the HTTP response
         mock_response = AsyncMock()
@@ -152,7 +173,7 @@ class TestAssetsRouter:
         )
 
     @patch("httpx.AsyncClient.get")
-    def test_create_asset_from_url_minimal_request(self, mock_get, client):
+    def test_create_asset_from_url_minimal_request(self, mock_get, client, mock_storage_factory):
         """Test downloading an asset with minimal request (only URL)."""
         # Mock the HTTP response
         mock_response = AsyncMock()
