@@ -10,7 +10,7 @@ from app.schemas.asset import (
 from app.storage.base import StorageBackend
 from app.constants.asset import AssetState
 from app.config import get_settings
-from app.processing.document_analyzer import DocumentAnalyzer
+from app.services.analysis.base import DocumentAnalysisBackend
 
 
 async def upload_asset(
@@ -21,6 +21,7 @@ async def upload_asset(
     name: Optional[str] = None,
     labels: Optional[Dict[str, Any]] = None,
     extract_data: bool = False,
+    analysis_backend: Optional[DocumentAnalysisBackend] = None,
 ) -> AssetUploadResponse:
     """
     Upload an asset and create an asset record.
@@ -32,7 +33,8 @@ async def upload_asset(
         storage: StorageBackend instance
         name: Optional custom name for the asset (defaults to original filename)
         labels: Optional dictionary of labels to attach to the asset
-        extract_data: If True, extract data from the document using DocumentAnalyzer
+        extract_data: If True and analysis_backend is provided, extract data from the document
+        analysis_backend: Optional DocumentAnalysisBackend to use for extraction
 
     Returns:
         AssetUploadResponse: Asset information including ID and URL
@@ -79,23 +81,17 @@ async def upload_asset(
 
         # Extract data from document if requested (before saving to storage)
         extracted_data = None
-        if extract_data:
+        if extract_data and analysis_backend is not None:
             try:
-                # Read file content for analysis
-                file.file.seek(0)  # Reset file pointer
-                file_content = await file.read()
-
-                # Analyze the document
-                analyzer = DocumentAnalyzer()
-                extracted_data = analyzer.analyze(file_content)
-
-                # Reset file pointer for storage.save()
                 file.file.seek(0)
-            except Exception as e:
-                # Log error but don't fail the upload
-                # extracted_data will remain None
+                file_content = await file.read()
+                result = await analysis_backend.analyze(
+                    file_content, file.content_type or "application/octet-stream"
+                )
+                extracted_data = result.model_dump()
+                file.file.seek(0)
+            except Exception:
                 file.file.seek(0)  # Reset file pointer even on error
-                pass
 
         # Save file to storage
         await storage.save(asset.id, file)
@@ -112,7 +108,7 @@ async def upload_asset(
 
         # Generate serve URL for public access
         if hasattr(storage, "generate_serve_token"):
-            serve_token = storage.generate_serve_token(str(file.id))
+            serve_token = storage.generate_serve_token(str(asset.id))
             serve_url = f"/serve/{serve_token}"
         else:
             serve_url = url  # Fallback to regular URL if serve token not supported

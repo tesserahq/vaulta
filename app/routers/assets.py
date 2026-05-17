@@ -22,7 +22,11 @@ from urllib.parse import urlparse
 
 from app.utils.auth import get_current_user
 from app.utils.token_utils import verify_signed_url
-from app.routers.utils.dependencies import get_asset_by_id, get_validated_file
+from app.routers.utils.dependencies import (
+    get_analysis_backend,
+    get_asset_by_id,
+    get_validated_file,
+)
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
@@ -221,6 +225,7 @@ async def upload_asset_endpoint(
     name: Optional[str] = Form(None),
     labels: Optional[str] = Form(None),
     extract_data: bool = Form(False),
+    config_id: Optional[UUID] = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -284,6 +289,7 @@ async def upload_asset_endpoint(
 
     asset_repository = AssetRepository(db)
     storage = StorageFactory.get_backend()
+    analysis_backend = get_analysis_backend(config_id, db) if extract_data else None
     return await upload_asset(
         file=file,
         user_id=UUID(str(current_user.id)),
@@ -292,6 +298,7 @@ async def upload_asset_endpoint(
         name=name,
         labels=parsed_labels,
         extract_data=extract_data,
+        analysis_backend=analysis_backend,
     )
 
 

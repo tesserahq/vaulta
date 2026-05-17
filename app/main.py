@@ -6,6 +6,7 @@ from app.config import get_settings
 import rollbar
 from rollbar.logger import RollbarHandler
 
+from app.routers.analysis_configs import router as analysis_configs_router
 from app.routers.assets import router as assets_router
 from app.routers.clients import router as clients_router
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -111,6 +112,7 @@ def create_app(testing: bool = False, auth_middleware=None) -> FastAPI:
 
     app.include_router(assets_router)
     app.include_router(clients_router)
+    app.include_router(analysis_configs_router)
 
     register_exception_handlers(app)
 
