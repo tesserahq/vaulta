@@ -110,6 +110,7 @@ async def upload_asset(
         # Local storage: a /serve/{token} path served by this API.
         # S3 and other backends: the direct presigned URL (no server hop needed).
         from app.storage.local import LocalStorageBackend
+
         if isinstance(storage, LocalStorageBackend):
             if hasattr(storage, "generate_serve_token"):
                 serve_token = storage.generate_serve_token(str(asset.id))

@@ -102,7 +102,9 @@ async def serve_asset_via_signed_url(
                     "Content-Disposition": f"inline; filename={asset.filename}",
                     "Cache-Control": "public, max-age=31536000, immutable",
                     "ETag": etag,
-                    "Last-Modified": last_modified.strftime("%a, %d %b %Y %H:%M:%S GMT"),
+                    "Last-Modified": last_modified.strftime(
+                        "%a, %d %b %Y %H:%M:%S GMT"
+                    ),
                 },
             )
 
