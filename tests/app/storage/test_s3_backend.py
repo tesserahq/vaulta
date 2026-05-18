@@ -24,7 +24,6 @@ class TestS3StorageBackend:
     @pytest.mark.asyncio
     async def test_save_calls_upload_fileobj(self, s3_backend):
         from io import BytesIO
-        from unittest.mock import AsyncMock
 
         from fastapi import UploadFile
 

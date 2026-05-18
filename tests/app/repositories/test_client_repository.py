@@ -1,6 +1,5 @@
-from datetime import datetime
 from app.repositories.client_repository import ClientRepository
-from app.schemas.client import ClientCreate, ClientUpdate, ClientWithSecret
+from app.schemas.client import ClientCreate, ClientUpdate
 
 
 class TestClientRepository:

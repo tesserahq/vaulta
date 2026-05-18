@@ -1,125 +1,120 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import List
-from uuid import UUID
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
+from fastapi_pagination.ext.sqlalchemy import paginate
+from app.commands.clients.create_client_command import CreateClientCommand
+from app.commands.clients.delete_client_command import DeleteClientCommand
+from app.commands.clients.update_client_command import UpdateClientCommand
 from app.db import get_db
+from app.models.client import Client as ClientModel
 from app.repositories.client_repository import ClientRepository
 from app.schemas.client import Client, ClientCreate, ClientUpdate, ClientWithSecret
 from app.schemas.common import MessageResponse
 from app.models.user import User
 from app.utils.auth import get_current_user
-from app.routers.utils.dependencies import get_client_by_id
+from app.routers.utils.dependencies import get_client_by_id, get_client_by_slug
+from app.auth.rbac import build_rbac_dependencies
+from fastapi_pagination import Page, Params
+from fastapi import Request
+from typing import Optional
 
 router = APIRouter(prefix="/clients", tags=["clients"])
 
 
-@router.get("", response_model=List[Client])
-async def get_clients(
-    skip: int = Query(0, ge=0, description="Number of records to skip"),
-    limit: int = Query(
-        100, ge=1, le=1000, description="Maximum number of records to return"
-    ),
+async def infer_domain(request: Request) -> Optional[str]:
+    return "*"
+
+
+RESOURCE_CREDENTIALS = "client"
+rbac = build_rbac_dependencies(
+    resource=RESOURCE_CREDENTIALS,
+    domain_resolver=infer_domain,
+)
+
+
+@router.get("", response_model=Page[Client])
+def get_clients(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
-    """Get a list of clients with pagination."""
-    client_repository = ClientRepository(db)
-    clients = client_repository.get_clients(skip=skip, limit=limit)
-    return clients
+    params: Params = Depends(),
+    _authorized: bool = Depends(rbac["read"]),
+) -> Page[Client]:
+    """Get a paginated list of clients."""
+    return paginate(db, select(ClientModel), params=params)
 
 
 @router.get("/{client_id}", response_model=Client)
-async def get_client(
-    client_id: UUID,
-    db: Session = Depends(get_db),
+def get_client(
+    client: ClientModel = Depends(get_client_by_id),
     current_user: User = Depends(get_current_user),
+    _authorized: bool = Depends(rbac["read"]),
 ):
     """Get a specific client by UUID."""
-    client_repository = ClientRepository(db)
-    client = client_repository.get_client(client_id)
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
     return client
 
 
 @router.get("/by-client-id/{client_id}", response_model=Client)
-async def get_client_by_client_id(
-    client_id: str,
-    db: Session = Depends(get_db),
+def get_client_by_client_id(
+    client: ClientModel = Depends(get_client_by_slug),
     current_user: User = Depends(get_current_user),
+    _authorized: bool = Depends(rbac["read"]),
 ):
     """Get a specific client by client_id (slug)."""
-    client_repository = ClientRepository(db)
-    client = client_repository.get_client_by_client_id(client_id)
-    if not client:
-        raise HTTPException(status_code=404, detail="Client not found")
     return client
 
 
 @router.post("", response_model=ClientWithSecret)
-async def create_client(
+def create_client(
     client: ClientCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _authorized: bool = Depends(rbac["create"]),
 ):
     """Create a new client and return it with the derived secret."""
-    client_repository = ClientRepository(db)
-
-    # Check if client_id already exists
-    existing_client = client_repository.get_client_by_client_id(client.client_id)
-    if existing_client:
-        raise HTTPException(status_code=400, detail="Client ID already exists")
-
-    return client_repository.create_client(client)
+    try:
+        return CreateClientCommand(db).execute(client)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.put("/{client_id}", response_model=Client)
-async def update_client(
+def update_client(
     client_update: ClientUpdate,
-    client: Client = Depends(get_client_by_id),
+    client: ClientModel = Depends(get_client_by_id),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _authorized: bool = Depends(rbac["update"]),
 ):
     """Update an existing client."""
-    client_repository = ClientRepository(db)
-
-    # If client_id is being updated, check for uniqueness
-    if client_update.client_id and client_update.client_id != client.client_id:
-        duplicate_client = client_repository.get_client_by_client_id(
-            client_update.client_id
-        )
-        if duplicate_client:
-            raise HTTPException(status_code=400, detail="Client ID already exists")
-
-    updated_client = client_repository.update_client(client.id, client_update)
-    return updated_client
+    try:
+        return UpdateClientCommand(db).execute(client, client_update)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.delete("/{client_id}", response_model=MessageResponse)
-async def delete_client(
-    client: Client = Depends(get_client_by_id),
+def delete_client(
+    client: ClientModel = Depends(get_client_by_id),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _authorized: bool = Depends(rbac["delete"]),
 ):
     """Delete a client."""
-    client_repository = ClientRepository(db)
-    success = client_repository.delete_client(client.id)
-    if not success:
-        raise HTTPException(status_code=404, detail="Client not found")
+    DeleteClientCommand(db).execute(client)
     return MessageResponse(
         message="Client deleted successfully", details={"client_id": str(client.id)}
     )
 
 
 @router.post("/{client_id}/regenerate-secret", response_model=ClientWithSecret)
-async def regenerate_client_secret(
-    client: Client = Depends(get_client_by_id),
+def regenerate_client_secret(
+    client: ClientModel = Depends(get_client_by_id),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    _authorized: bool = Depends(rbac["update"]),
 ):
     """Regenerate the secret for a client and return the new secret."""
-    client_repository = ClientRepository(db)
-    client = client_repository.regenerate_secret(client.id)
-    if not client:
+    regenerated = ClientRepository(db).regenerate_secret(client.id)
+    if not regenerated:
         raise HTTPException(status_code=404, detail="Client not found")
-    return client
+    return regenerated

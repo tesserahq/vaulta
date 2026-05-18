@@ -1,8 +1,7 @@
 import pytest
 from uuid import uuid4
-from unittest.mock import patch, AsyncMock, Mock, MagicMock
+from unittest.mock import patch, AsyncMock, Mock
 import httpx
-from fastapi import UploadFile
 
 
 class MockStorageBackend:

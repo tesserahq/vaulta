@@ -1,6 +1,5 @@
 import logging
-from app.middleware.db_session import DBSessionMiddleware
-from fastapi import FastAPI, UploadFile, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 import rollbar
@@ -17,6 +16,7 @@ from rollbar.contrib.fastapi import ReporterMiddleware as RollbarMiddleware
 from app.db import db_manager
 from app.utils.metrics import PrometheusMiddleware, metrics
 from tessera_sdk.server.health import get_livez_readyz_router
+from fastapi_pagination import add_pagination
 
 SKIP_PATHS = [
     "/assets/serve",
@@ -115,6 +115,7 @@ def create_app(testing: bool = False, auth_middleware=None) -> FastAPI:
     app.include_router(analysis_configs_router)
 
     register_exception_handlers(app)
+    add_pagination(app)
 
     return app
 

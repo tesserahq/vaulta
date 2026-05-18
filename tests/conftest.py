@@ -7,9 +7,31 @@ from sqlalchemy.orm import sessionmaker
 from fastapi import Request
 from fastapi.security import HTTPAuthorizationCredentials
 from app.db import Base, get_db
-from app.main import create_app
+from unittest.mock import patch
 from starlette.middleware.base import BaseHTTPMiddleware
 import os
+
+
+# Patch authorize BEFORE importing create_app (which imports routers)
+def mock_authorize(*args, **kwargs):
+    """
+    Mock authorize function that returns a dependency always returning True.
+    This mocks tessera_sdk.server.dependencies.authorization.authorize globally.
+    """
+
+    async def always_authorized():
+        return True
+
+    return always_authorized
+
+
+# Start the patch at module level before any routers are imported
+_authorize_patcher = patch(
+    "tessera_sdk.server.dependencies.authorization.authorize", mock_authorize
+)
+_authorize_patcher.start()
+
+from app.main import create_app
 
 pytest_plugins = [
     "tests.fixtures.user_fixtures",

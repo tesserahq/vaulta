@@ -1,5 +1,4 @@
 import uvicorn
-import os
 from app.config import get_settings
 
 

@@ -1,12 +1,11 @@
-from app.models.client import Client
-
-
 class TestClientRouter:
     def test_get_clients_empty(self, client):
         """Test getting clients when none exist."""
         response = client.get("/clients")
         assert response.status_code == 200
-        assert response.json() == []
+        data = response.json()
+        assert data["items"] == []
+        assert data["total"] == 0
 
     def test_get_clients_with_data(self, client, setup_multiple_clients):
         """Test getting clients with pagination."""
@@ -14,20 +13,23 @@ class TestClientRouter:
         # Test default pagination
         response = client.get("/clients")
         assert response.status_code == 200
-        clients = response.json()
-        assert len(clients) == 3
+        data = response.json()
+        assert len(data["items"]) == 3
+        assert data["total"] == 3
 
-        # Test pagination with limit
-        response = client.get("/clients?limit=2")
+        # Test pagination with size
+        response = client.get("/clients?size=2")
         assert response.status_code == 200
-        clients = response.json()
-        assert len(clients) == 2
+        data = response.json()
+        assert len(data["items"]) == 2
+        assert data["size"] == 2
 
-        # Test pagination with skip
-        response = client.get("/clients?skip=1&limit=2")
+        # Test pagination with page
+        response = client.get("/clients?page=2&size=2")
         assert response.status_code == 200
-        clients = response.json()
-        assert len(clients) == 2
+        data = response.json()
+        assert len(data["items"]) == 1
+        assert data["page"] == 2
 
     def test_create_client_success(self, client):
         """Test creating a new client successfully."""
@@ -174,15 +176,15 @@ class TestClientRouter:
 
     def test_pagination_parameters(self, client):
         """Test pagination parameter validation."""
-        # Test invalid skip parameter
-        response = client.get("/clients?skip=-1")
+        # Test invalid page parameter
+        response = client.get("/clients?page=0")
         assert response.status_code == 422  # Validation error
 
-        # Test invalid limit parameter
-        response = client.get("/clients?limit=0")
+        # Test invalid size parameter
+        response = client.get("/clients?size=0")
         assert response.status_code == 422  # Validation error
 
-        response = client.get("/clients?limit=1001")
+        response = client.get("/clients?size=101")
         assert response.status_code == 422  # Validation error
 
     def test_regenerate_secret_success(self, client, setup_client):
