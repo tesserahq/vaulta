@@ -27,7 +27,8 @@ from app.routers.utils.dependencies import (
     get_asset_by_id,
     get_validated_file,
 )
-from app.config import get_settings
+from app.services.processors.analysis import AnalysisProcessor
+from app.services.processors.summarization import SummarizationProcessor
 from app.services.summarization.claude import ClaudeSummarizationService
 
 router = APIRouter(prefix="/assets", tags=["assets"])
@@ -304,15 +305,14 @@ async def upload_asset_endpoint(
 
     asset_repository = AssetRepository(db)
     storage = StorageFactory.get_backend()
-    analysis_backend = get_analysis_backend(config_id, db) if extract_data else None
 
-    summarization_service = None
+    processors = []
+    if extract_data:
+        backend = get_analysis_backend(config_id, db)
+        if backend:
+            processors.append(AnalysisProcessor(backend))
     if summarize:
-        settings = get_settings()
-        summarization_service = ClaudeSummarizationService(
-            api_key=settings.anthropic_api_key,
-            bedrock_region=settings.bedrock_region,
-        )
+        processors.append(SummarizationProcessor(ClaudeSummarizationService()))
 
     return await upload_asset(
         file=file,
@@ -321,10 +321,7 @@ async def upload_asset_endpoint(
         storage=storage,
         name=name,
         labels=parsed_labels,
-        extract_data=extract_data,
-        analysis_backend=analysis_backend,
-        summarize=summarize,
-        summarization_service=summarization_service,
+        processors=processors,
     )
 
 
