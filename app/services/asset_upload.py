@@ -13,7 +13,7 @@ from app.schemas.asset import (
 from app.storage.base import StorageBackend
 from app.constants.asset import AssetState
 from app.config import get_settings
-from app.services.processors.base import AssetProcessor
+from app.services.processors.base import AssetProcessor, ProcessorContext
 
 
 def _validate_file_size(asset_size: int) -> None:
@@ -35,6 +35,7 @@ async def upload_asset(
     name: Optional[str] = None,
     labels: Optional[Dict[str, Any]] = None,
     processors: Optional[list[AssetProcessor]] = None,
+    ctx: Optional[ProcessorContext] = None,
 ) -> AssetUploadResponse:
     # Measure size without reading content yet
     file.file.seek(0, 2)
@@ -71,6 +72,7 @@ async def upload_asset(
         url = await storage.get_url(asset.id)
 
         # Run all processors and merge their partial updates
+        effective_ctx = ctx or ProcessorContext(user_id=user_id, project_id="*")
         updates: Dict[str, Any] = {}
         for processor in processors or []:
             updates.update(
@@ -78,6 +80,7 @@ async def upload_asset(
                     file_bytes,
                     file.content_type or "application/octet-stream",
                     url,
+                    effective_ctx,
                 )
             )
 

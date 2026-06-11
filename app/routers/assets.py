@@ -22,12 +22,18 @@ from urllib.parse import urlparse
 
 from app.utils.auth import get_current_user
 from app.utils.token_utils import verify_signed_url
+from app.providers import AnalysisProvider
 from app.routers.utils.dependencies import (
-    get_analysis_backend,
     get_asset_by_id,
     get_validated_file,
+    resolve_analysis_config,
 )
 from app.services.processors.analysis import AnalysisProcessor
+from app.services.processors.base import ProcessorContext
+from app.services.processors.modela import (
+    ModelaAnalysisProcessor,
+    ModelaSummarizationProcessor,
+)
 from app.services.processors.summarization import SummarizationProcessor
 from app.services.summarization.claude import ClaudeSummarizationService
 
@@ -242,6 +248,7 @@ async def upload_asset_endpoint(
     extract_data: bool = Form(False),
     config_id: Optional[UUID] = Form(None),
     summarize: bool = Form(False),
+    project_id: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -306,13 +313,34 @@ async def upload_asset_endpoint(
     asset_repository = AssetRepository(db)
     storage = StorageFactory.get_backend()
 
+    ctx = ProcessorContext(
+        user_id=UUID(str(current_user.id)),
+        project_id=project_id or "*",
+    )
+    config = (
+        resolve_analysis_config(config_id, db) if (extract_data or summarize) else None
+    )
+
     processors = []
     if extract_data:
-        backend = get_analysis_backend(config_id, db)
-        if backend:
-            processors.append(AnalysisProcessor(backend))
+        if config and config.provider == AnalysisProvider.MODELA:
+            processors.append(ModelaAnalysisProcessor())
+        else:
+            from app.services.analysis.factory import AnalysisFactory
+
+            if config is not None:
+                backend = AnalysisFactory.get_backend(
+                    config.provider, config.provider_params
+                )
+            else:
+                backend = AnalysisFactory.get_backend()
+            if backend:
+                processors.append(AnalysisProcessor(backend))
     if summarize:
-        processors.append(SummarizationProcessor(ClaudeSummarizationService()))
+        if config and config.summarization_provider == AnalysisProvider.MODELA:
+            processors.append(ModelaSummarizationProcessor())
+        else:
+            processors.append(SummarizationProcessor(ClaudeSummarizationService()))
 
     return await upload_asset(
         file=file,
@@ -322,6 +350,7 @@ async def upload_asset_endpoint(
         name=name,
         labels=parsed_labels,
         processors=processors,
+        ctx=ctx,
     )
 
 

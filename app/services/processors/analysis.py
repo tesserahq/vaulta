@@ -2,7 +2,7 @@ import logging
 from typing import Any
 
 from app.services.analysis.base import DocumentAnalysisBackend
-from app.services.processors.base import AssetProcessor
+from app.services.processors.base import AssetProcessor, ProcessorContext
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +12,11 @@ class AnalysisProcessor(AssetProcessor):
         self._backend = backend
 
     async def process(
-        self, file_bytes: bytes, content_type: str, asset_url: str
+        self,
+        file_bytes: bytes,
+        content_type: str,
+        asset_url: str,
+        ctx: ProcessorContext,
     ) -> dict[str, Any]:
         try:
             result = await self._backend.analyze(file_bytes, content_type)

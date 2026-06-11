@@ -1,0 +1,28 @@
+site_name: Vaulta Documentation
+site_description: Asset management service — internal engineering reference
+
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Analysis:
+    - Overview: analysis/index.md
+    - Providers: analysis/providers.md
+    - Adding a Provider: analysis/extending.md
+  - Summarization:
+    - Overview: summarization/index.md
+    - Providers: summarization/providers.md
+    - Adding a Provider: summarization/extending.md
+  - Processors:
+    - Overview: processors/index.md
+    - Built-in Processors: processors/builtin.md
+    - Adding a Processor: processors/extending.md
+  - Modela: modela.md
+  - Configuration:
+    - File Upload: config/upload.md
+    - Analysis Config API: config/analysis_configs.md
+  - Development: development.md
+
+docs_dir: .
+
+plugins:
+  - techdocs-core

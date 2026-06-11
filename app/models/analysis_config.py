@@ -15,3 +15,5 @@ class AnalysisConfig(Base, TimestampMixin):
     provider = Column(String, nullable=False)
     is_default = Column(Boolean, nullable=False, default=False)
     provider_params = Column(JSONB, nullable=False, default=dict)
+    summarization_provider = Column(String, nullable=True)
+    summarization_provider_params = Column(JSONB, nullable=True, default=dict)

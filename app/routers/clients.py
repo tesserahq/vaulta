@@ -35,7 +35,7 @@ rbac = build_rbac_dependencies(
 @router.get("", response_model=Page[Client])
 def get_clients(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _current_user: User = Depends(get_current_user),
     params: Params = Depends(),
     _authorized: bool = Depends(rbac["read"]),
 ) -> Page[Client]:
