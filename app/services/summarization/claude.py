@@ -40,17 +40,24 @@ class ClaudeSummarizationService:
         bedrock_region: Optional[str] = None,
         model: Optional[str] = None,
     ) -> None:
-        self._bedrock_region = bedrock_region
+        from app.config import get_settings
+
+        settings = get_settings()
+        self._bedrock_region = bedrock_region or settings.bedrock_region
         self._model = model or _DEFAULT_MODEL
 
-        if bedrock_region:
+        if self._bedrock_region:
             import boto3
 
-            self._client = boto3.client("bedrock-runtime", region_name=bedrock_region)
+            self._client = boto3.client(
+                "bedrock-runtime", region_name=self._bedrock_region
+            )
         else:
             import anthropic
 
-            self._client = anthropic.Anthropic(api_key=api_key)
+            self._client = anthropic.Anthropic(
+                api_key=api_key or settings.anthropic_api_key
+            )
 
     async def summarize(self, file_bytes: bytes, content_type: str) -> SummaryResult:
         logger.info(
