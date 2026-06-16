@@ -94,6 +94,17 @@ def get_validated_file(file: UploadFile = Depends(validate_file_size)) -> Upload
     return file
 
 
+def resolve_analysis_config(
+    config_id: Optional[UUID],
+    db: Session,
+) -> Optional[AnalysisConfig]:
+    """Return the AnalysisConfig row for config_id, the default, or None."""
+    repo = AnalysisConfigRepository(db)
+    if config_id is not None:
+        return get_analysis_config_by_id(config_id, db)
+    return repo.get_default()
+
+
 def get_analysis_backend(
     config_id: Optional[UUID],
     db: Session,
@@ -104,17 +115,9 @@ def get_analysis_backend(
     If config_id is None, uses the DB default config; falls back to the settings singleton.
     Returns None only when no configuration exists at all.
     """
-    repo = AnalysisConfigRepository(db)
-
-    if config_id is not None:
-        config = get_analysis_config_by_id(config_id, db)
+    config = resolve_analysis_config(config_id, db)
+    if config is not None:
         return AnalysisFactory.get_backend(config.provider, config.provider_params)
-
-    default_config = repo.get_default()
-    if default_config is not None:
-        return AnalysisFactory.get_backend(
-            default_config.provider, default_config.provider_params
-        )
 
     # No DB config — fall back to settings singleton
     return AnalysisFactory.get_backend()

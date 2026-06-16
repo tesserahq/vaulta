@@ -94,6 +94,18 @@ Set `BEDROCK_REGION` to use Claude via Bedrock instead of the direct Anthropic A
 
 \* Can be omitted if running under an IAM role.
 
+### Modela
+
+Modela is a Tessera-native document analysis and summarization provider. Calls are attributed to the requesting user via a delegated token obtained through a machine-to-machine token exchange.
+
+| Variable | Required | Description |
+|---|---|---|
+| `MODELA_API_URL` | Yes | Base URL of the Modela API (configured in `tessera-sdk` settings). |
+| `MODELA_AUDIENCE` | Yes | Token exchange audience for Modela (e.g. `https://modela.tessera.com`). |
+| `MODELA_SCOPE` | Yes | Scopes to request during token exchange (e.g. `scan:file summarize:file`). |
+
+M2M credentials (`service_account_client_id` / `service_account_client_secret`) must also be set in the tessera-sdk settings so the M2M token client can obtain a base token before exchanging it.
+
 ## Setup
 
 ### 1. Install optional dependencies

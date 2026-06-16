@@ -97,6 +97,12 @@ class Settings(BaseSettings):
         default=None, json_schema_extra={"env": "BEDROCK_REGION"}
     )
 
+    # Modela settings
+    modela_audience: str = Field(
+        default="", json_schema_extra={"env": "MODELA_AUDIENCE"}
+    )
+    modela_scope: str = Field(default="", json_schema_extra={"env": "MODELA_SCOPE"})
+
     oidc_domain: str = "test.oidc.com"
     oidc_api_audience: str = "https://test-api"
     oidc_issuer: str = "https://test.oidc.com/"

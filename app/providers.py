@@ -11,3 +11,4 @@ class AnalysisProvider(StrEnum):
     TEXTRACT = "textract"
     GOOGLE_DAI = "google_dai"
     CLAUDE = "claude"
+    MODELA = "modela"
