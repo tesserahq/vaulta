@@ -22,7 +22,5 @@ nav:
     - Analysis Config API: config/analysis_configs.md
   - Development: development.md
 
-docs_dir: .
-
 plugins:
   - techdocs-core
