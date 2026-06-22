@@ -29,3 +29,8 @@ class AnalysisConfigResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AnalysisProviderResponse(BaseModel):
+    id: str
+    label: str

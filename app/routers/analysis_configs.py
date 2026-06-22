@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from fastapi_pagination import Page, Params
+from fastapi_pagination import Page, Params, paginate as paginate_sequence
 from fastapi_pagination.ext.sqlalchemy import paginate
 
 from app.auth.rbac import build_rbac_dependencies
@@ -19,11 +19,13 @@ from app.commands.analysis_configs.update_analysis_config_command import (
 from app.db import get_db
 from app.models.analysis_config import AnalysisConfig as AnalysisConfigModel
 from app.models.user import User
+from app.providers import ANALYSIS_PROVIDER_LABELS, AnalysisProvider
 from app.routers.utils.dependencies import get_analysis_config_by_id
 from app.schemas.analysis_config import (
     AnalysisConfigCreate,
     AnalysisConfigResponse,
     AnalysisConfigUpdate,
+    AnalysisProviderResponse,
 )
 from app.utils.auth import get_current_user
 
@@ -50,6 +52,22 @@ def list_analysis_configs(
 ) -> Page[AnalysisConfigResponse]:
     """Get a paginated list of analysis configs."""
     return paginate(db, select(AnalysisConfigModel), params=params)
+
+
+@router.get("/providers", response_model=Page[AnalysisProviderResponse])
+def list_analysis_providers(
+    current_user: User = Depends(get_current_user),
+    params: Params = Depends(),
+    _authorized: bool = Depends(rbac["read"]),
+) -> Page[AnalysisProviderResponse]:
+    """List available analysis providers."""
+    providers = [
+        AnalysisProviderResponse(
+            id=provider.value, label=ANALYSIS_PROVIDER_LABELS[provider]
+        )
+        for provider in AnalysisProvider
+    ]
+    return paginate_sequence(providers, params=params)
 
 
 @router.get("/{config_id}", response_model=AnalysisConfigResponse)
