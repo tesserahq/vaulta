@@ -72,3 +72,35 @@ jobs:
       - name: Run unit tests
         run: |
           poetry run pytest tests/
+
+  docs:
+    name: Validate documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            docs:
+              - 'docs/**'
+
+      - name: Set up Python
+        if: steps.filter.outputs.docs == 'true'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install MkDocs + TechDocs core
+        if: steps.filter.outputs.docs == 'true'
+        run: pip install mkdocs-techdocs-core==1.7.0
+
+      - name: Build docs (strict)
+        if: steps.filter.outputs.docs == 'true'
+        run: |
+          cp docs/mkdocs.yml mkdocs.yml
+          mkdocs build --strict
+          rm mkdocs.yml
