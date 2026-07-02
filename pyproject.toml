@@ -67,6 +67,7 @@ tessera-sdk = { git = "https://github.com/tesserahq/tessera-sdk-py.git", branch 
 uvicorn = "0.49.0"
 python-multipart = "^0.0.32"
 fastapi-pagination = "^0.15.12"
+prometheus-fastapi-instrumentator = "^8.0.2"
 
 
 [tool.poetry.group.dev.dependencies]
