@@ -91,9 +91,6 @@ def create_app(testing: bool = False, auth_middleware=None) -> FastAPI:
             user_service_factory=user_service_factory,
         )
 
-        # Setting metrics middleware
-        app.add_middleware(PrometheusMiddleware, app_name=settings.app_name)
-        app.add_route("/metrics", metrics)
     else:
         logger.info("Main: No authentication middleware")
         if auth_middleware:
