@@ -211,3 +211,17 @@ class TestTokenUtils:
         with pytest.raises(HTTPException) as exc_info:
             verify_signed_url("doc.client.notanint.sig", secret)
         assert exc_info.value.status_code == 400
+
+    def test_verify_signed_url_empty_asset_id(self):
+        """A payload with an empty asset ID segment (e.g. leading dot) is rejected as bad input, not a 500."""
+        client_id = "test-client"
+        secret = "super-secret-key"
+        expires_in = 10
+
+        url = sign_serve_url("", client_id, expires_in, secret)
+        payload = url.removeprefix("/assets/serve/")
+
+        with pytest.raises(HTTPException) as exc_info:
+            verify_signed_url(payload, secret)
+        assert exc_info.value.status_code == 400
+        assert "asset id" in exc_info.value.detail.lower()

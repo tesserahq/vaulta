@@ -87,8 +87,13 @@ async def serve_asset_via_signed_url(
         # Verify the signed URL payload and get the asset ID
         asset_id = verify_signed_url(payload)
 
+        try:
+            asset_uuid = UUID(asset_id)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="Asset not found")
+
         asset_repository = AssetRepository(db)
-        asset = asset_repository.get_asset(UUID(asset_id))
+        asset = asset_repository.get_asset(asset_uuid)
 
         if not asset:
             raise HTTPException(status_code=404, detail="Asset not found")

@@ -3,6 +3,9 @@ from uuid import uuid4
 from unittest.mock import patch, AsyncMock, Mock
 import httpx
 
+from app.config import get_settings
+from app.utils.token_utils import derive_secret, sign_serve_url
+
 
 class MockStorageBackend:
     """Minimal storage mock for router tests — avoids hitting real S3."""
@@ -194,3 +197,29 @@ class TestAssetsRouter:
         assert "asset_id" in data
         assert data["filename"] == "document.pdf"  # Extracted from URL
         assert data["mime_type"] == "application/pdf"
+
+
+class TestServeAssetRoute:
+    def _sign(self, asset_id, client_id="linden", expires_in=3600):
+        master_secret = get_settings().master_secret_key
+        derived_secret = derive_secret(client_id, master_secret)
+        url = sign_serve_url(asset_id, client_id, expires_in, derived_secret)
+        return url.removeprefix("/assets/serve/")
+
+    def test_serve_asset_empty_asset_id_returns_400_not_500(self, client):
+        """A validly-signed payload with an empty asset id must not 500."""
+        payload = self._sign("")
+
+        response = client.get(f"/assets/serve/{payload}")
+
+        assert response.status_code == 400
+        assert "asset id" in response.json()["detail"].lower()
+
+    def test_serve_asset_malformed_asset_id_returns_404_not_500(self, client):
+        """A validly-signed payload with a non-UUID asset id must not 500."""
+        payload = self._sign("not-a-real-uuid")
+
+        response = client.get(f"/assets/serve/{payload}")
+
+        assert response.status_code == 404
+        assert "Asset not found" in response.json()["detail"]

@@ -98,6 +98,9 @@ def verify_signed_url(payload: str, secret: Optional[str] = None) -> str:
             raise HTTPException(status_code=400, detail="Invalid URL format")
 
         asset_id, client_id, expires_at_str, signature = parts
+        if not asset_id:
+            raise HTTPException(status_code=400, detail="Missing asset id in URL")
+
         # Verify expiration
         try:
             expires_at = int(expires_at_str)
