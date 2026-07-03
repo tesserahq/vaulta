@@ -4,6 +4,11 @@ from unittest.mock import patch, AsyncMock, Mock
 import httpx
 
 from app.config import get_settings
+from app.repositories.asset_repository import AssetRepository
+from app.routers.assets import get_storage_backend
+from app.routers.utils.dependencies import get_asset_cache
+from app.cache.asset_cache import AssetCache
+from app.storage.local import LocalStorageBackend
 from app.utils.token_utils import derive_secret, sign_serve_url
 
 
@@ -78,6 +83,20 @@ class TestAssetsRouter:
         response = client.delete(f"/assets/{non_existent_id}")
         assert response.status_code == 404
         assert "Asset not found" in response.json()["detail"]
+
+    def test_delete_asset_invalidates_cache(self, client, setup_asset):
+        """Deleting an asset must invalidate any cached serve-metadata entry for it."""
+        underlying = Mock()
+        cache = AssetCache(underlying)
+
+        client.app.dependency_overrides[get_asset_cache] = lambda: cache
+        try:
+            response = client.delete(f"/assets/{setup_asset.id}")
+
+            assert response.status_code == 200
+            underlying.delete.assert_called_once_with(str(setup_asset.id))
+        finally:
+            del client.app.dependency_overrides[get_asset_cache]
 
     def test_delete_asset_not_authorized(self, client, setup_another_asset):
         """Test deleting an asset owned by another user."""
@@ -223,3 +242,83 @@ class TestServeAssetRoute:
 
         assert response.status_code == 404
         assert "Asset not found" in response.json()["detail"]
+
+    def test_serve_asset_cache_hit_skips_repository(
+        self, client, setup_asset, tmp_path
+    ):
+        """A positive cache hit must serve the asset without querying the repository."""
+        storage = LocalStorageBackend(storage_dir=tmp_path)
+        (storage.private_dir / str(setup_asset.id)).write_bytes(b"fake bytes")
+
+        underlying = Mock()
+        underlying.read.return_value = {
+            "found": True,
+            "mime_type": setup_asset.mime_type,
+            "filename": setup_asset.filename,
+        }
+        cache = AssetCache(underlying)
+
+        client.app.dependency_overrides[get_storage_backend] = lambda: storage
+        client.app.dependency_overrides[get_asset_cache] = lambda: cache
+        try:
+            with patch.object(AssetRepository, "get_asset") as mock_get_asset:
+                payload = self._sign(str(setup_asset.id))
+                response = client.get(f"/assets/serve/{payload}")
+
+                assert response.status_code == 200
+                mock_get_asset.assert_not_called()
+        finally:
+            del client.app.dependency_overrides[get_storage_backend]
+            del client.app.dependency_overrides[get_asset_cache]
+
+    def test_serve_asset_cache_miss_populates_positive_cache_entry(
+        self, client, setup_asset, tmp_path
+    ):
+        """A cache miss for an existing asset must query the DB once and populate the cache."""
+        storage = LocalStorageBackend(storage_dir=tmp_path)
+        (storage.private_dir / str(setup_asset.id)).write_bytes(b"fake bytes")
+
+        underlying = Mock()
+        underlying.read.return_value = None
+        cache = AssetCache(underlying)
+
+        client.app.dependency_overrides[get_storage_backend] = lambda: storage
+        client.app.dependency_overrides[get_asset_cache] = lambda: cache
+        try:
+            payload = self._sign(str(setup_asset.id))
+            response = client.get(f"/assets/serve/{payload}")
+
+            assert response.status_code == 200
+            underlying.write.assert_called_once_with(
+                str(setup_asset.id),
+                {
+                    "found": True,
+                    "mime_type": setup_asset.mime_type,
+                    "filename": setup_asset.filename,
+                },
+                ttl=600,
+            )
+        finally:
+            del client.app.dependency_overrides[get_storage_backend]
+            del client.app.dependency_overrides[get_asset_cache]
+
+    def test_serve_asset_cache_miss_not_found_populates_negative_cache_entry(
+        self, client
+    ):
+        """A cache miss for a nonexistent asset must cache the negative result."""
+        underlying = Mock()
+        underlying.read.return_value = None
+        cache = AssetCache(underlying)
+
+        client.app.dependency_overrides[get_asset_cache] = lambda: cache
+        try:
+            missing_id = uuid4()
+            payload = self._sign(str(missing_id))
+            response = client.get(f"/assets/serve/{payload}")
+
+            assert response.status_code == 404
+            underlying.write.assert_called_once_with(
+                str(missing_id), {"found": False}, ttl=60
+            )
+        finally:
+            del client.app.dependency_overrides[get_asset_cache]

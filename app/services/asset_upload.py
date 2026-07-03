@@ -2,6 +2,10 @@ import logging
 from typing import Optional, Dict, Any
 from uuid import UUID
 from fastapi import UploadFile, HTTPException
+from sqlalchemy.orm import Session
+
+from app.commands.assets.create_asset_command import CreateAssetCommand
+from app.commands.assets.update_asset_command import UpdateAssetCommand
 from app.repositories.asset_repository import AssetRepository
 
 logger = logging.getLogger(__name__)
@@ -30,13 +34,17 @@ def _validate_file_size(asset_size: int) -> None:
 async def upload_asset(
     file: UploadFile,
     user_id: UUID,
-    asset_repository: AssetRepository,
+    db: Session,
     storage: StorageBackend,
     name: Optional[str] = None,
     labels: Optional[Dict[str, Any]] = None,
     processors: Optional[list[AssetProcessor]] = None,
     ctx: Optional[ProcessorContext] = None,
 ) -> AssetUploadResponse:
+    asset_repository = AssetRepository(db)
+    create_command = CreateAssetCommand(db)
+    update_command = UpdateAssetCommand(db)
+
     # Measure size without reading content yet
     file.file.seek(0, 2)
     asset_size = file.file.tell()
@@ -53,10 +61,10 @@ async def upload_asset(
         state=AssetState.PENDING.value,
         state_message="Asset record created, waiting for upload",
     )
-    asset = asset_repository.create_asset(asset_data, user_id)
+    asset = create_command.execute(asset_data, user_id)
 
     try:
-        asset_repository.update_asset(
+        update_command.execute(
             asset.id,
             AssetUpdate(
                 state=AssetState.UPLOADING.value,
@@ -85,7 +93,7 @@ async def upload_asset(
             )
 
         if updates:
-            asset_repository.update_asset(asset.id, AssetUpdate(**updates))
+            update_command.execute(asset.id, AssetUpdate(**updates))
 
         from app.storage.local import LocalStorageBackend
 
@@ -96,7 +104,7 @@ async def upload_asset(
         else:
             serve_url = url
 
-        asset_repository.update_asset(
+        update_command.execute(
             asset.id,
             AssetUpdate(
                 state=AssetState.COMPLETED.value,
@@ -123,7 +131,7 @@ async def upload_asset(
         )
 
     except Exception as e:
-        asset_repository.update_asset(
+        update_command.execute(
             asset.id,
             AssetUpdate(
                 state=AssetState.FAILED.value,
