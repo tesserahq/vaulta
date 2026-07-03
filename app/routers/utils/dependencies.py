@@ -4,6 +4,8 @@ from uuid import UUID
 from fastapi import Depends, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.cache.asset_cache import AssetCache
+from app.cache.factory import AssetCacheFactory
 from app.config import get_settings
 from app.db import get_db
 from app.models.analysis_config import AnalysisConfig
@@ -14,6 +16,11 @@ from app.repositories.asset_repository import AssetRepository
 from app.repositories.client_repository import ClientRepository
 from app.services.analysis.base import DocumentAnalysisBackend
 from app.services.analysis.factory import AnalysisFactory
+
+
+def get_asset_cache() -> AssetCache:
+    """Get the configured asset cache."""
+    return AssetCacheFactory.get_cache()
 
 
 def get_asset_by_id(asset_id: UUID, db: Session = Depends(get_db)) -> Asset:

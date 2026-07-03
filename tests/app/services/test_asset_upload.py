@@ -75,13 +75,13 @@ def test_labels():
 
 @pytest.mark.asyncio
 async def test_successful_upload(
-    test_asset, setup_user, asset_repository, mock_storage
+    test_asset, setup_user, asset_repository, mock_storage, db
 ):
     """Test successful file upload."""
     response = await upload_asset(
         file=test_asset,
         user_id=setup_user.id,
-        asset_repository=asset_repository,
+        db=db,
         storage=mock_storage,
     )
 
@@ -104,14 +104,14 @@ async def test_successful_upload(
 
 @pytest.mark.asyncio
 async def test_upload_with_custom_name_and_labels(
-    test_asset, setup_user, asset_repository, mock_storage, test_labels
+    test_asset, setup_user, asset_repository, mock_storage, test_labels, db
 ):
     """Test file upload with custom name and labels."""
     custom_name = "Custom File Name"
     response = await upload_asset(
         file=test_asset,
         user_id=setup_user.id,
-        asset_repository=asset_repository,
+        db=db,
         storage=mock_storage,
         name=custom_name,
         labels=test_labels,
@@ -131,14 +131,14 @@ async def test_upload_with_custom_name_and_labels(
 
 @pytest.mark.asyncio
 async def test_upload_failure(
-    test_asset, setup_user, asset_repository, failing_storage
+    test_asset, setup_user, asset_repository, failing_storage, db
 ):
     """Test file upload failure handling."""
     with pytest.raises(Exception) as exc_info:
         await upload_asset(
             file=test_asset,
             user_id=setup_user.id,
-            asset_repository=asset_repository,
+            db=db,
             storage=failing_storage,
         )
 
@@ -153,13 +153,13 @@ async def test_upload_failure(
 
 @pytest.mark.asyncio
 async def test_upload_state_transitions(
-    test_asset, setup_user, asset_repository, mock_storage
+    test_asset, setup_user, asset_repository, mock_storage, db
 ):
     """Test asset state transitions during upload."""
     response = await upload_asset(
         file=test_asset,
         user_id=setup_user.id,
-        asset_repository=asset_repository,
+        db=db,
         storage=mock_storage,
     )
 
@@ -174,13 +174,13 @@ async def test_upload_state_transitions(
 
 @pytest.mark.asyncio
 async def test_asset_metadata_handling(
-    test_asset, setup_user, asset_repository, mock_storage
+    test_asset, setup_user, asset_repository, mock_storage, db
 ):
     """Test asset metadata handling during upload."""
     response = await upload_asset(
         file=test_asset,
         user_id=setup_user.id,
-        asset_repository=asset_repository,
+        db=db,
         storage=mock_storage,
     )
 

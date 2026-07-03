@@ -6,7 +6,10 @@ from app.storage.factory import StorageFactory
 from app.storage.local import LocalStorageBackend
 from uuid import UUID
 from sqlalchemy.orm import Session
+from app.cache.asset_cache import AssetCache
+from app.commands.assets.delete_asset_command import DeleteAssetCommand
 from app.db import get_db
+from app.services.asset_lookup import get_asset_for_serving
 from app.services.asset_upload import upload_asset
 from app.schemas.asset import AssetSearchQuery, AssetUploadResponse, Asset
 from app.schemas.common import MessageResponse
@@ -25,6 +28,7 @@ from app.utils.token_utils import verify_signed_url
 from app.providers import AnalysisProvider
 from app.routers.utils.dependencies import (
     get_asset_by_id,
+    get_asset_cache,
     get_validated_file,
     resolve_analysis_config,
 )
@@ -81,6 +85,7 @@ async def serve_asset_via_signed_url(
     payload: str,
     storage: StorageBackend = Depends(get_storage_backend),
     db: Session = Depends(get_db),
+    cache: AssetCache = Depends(get_asset_cache),
 ):
     """Serve a file via signed URL payload for public access."""
     try:
@@ -93,9 +98,9 @@ async def serve_asset_via_signed_url(
             raise HTTPException(status_code=404, detail="Asset not found")
 
         asset_repository = AssetRepository(db)
-        asset = asset_repository.get_asset(asset_uuid)
+        metadata = get_asset_for_serving(asset_uuid, asset_repository, cache)
 
-        if not asset:
+        if metadata is None:
             raise HTTPException(status_code=404, detail="Asset not found")
 
         if isinstance(storage, LocalStorageBackend):
@@ -110,10 +115,10 @@ async def serve_asset_via_signed_url(
 
             return FileResponse(
                 file_path,
-                media_type=str(asset.mime_type),
-                filename=str(asset.filename),
+                media_type=metadata.mime_type,
+                filename=metadata.filename,
                 headers={
-                    "Content-Disposition": f"inline; filename={asset.filename}",
+                    "Content-Disposition": f"inline; filename={metadata.filename}",
                     "Cache-Control": "public, max-age=31536000, immutable",
                     "ETag": etag,
                     "Last-Modified": last_modified.strftime(
@@ -134,9 +139,9 @@ async def serve_asset_via_signed_url(
 
         return StreamingResponse(
             stream_from_s3(),
-            media_type=str(asset.mime_type),
+            media_type=metadata.mime_type,
             headers={
-                "Content-Disposition": f"inline; filename={asset.filename}",
+                "Content-Disposition": f"inline; filename={metadata.filename}",
             },
         )
 
@@ -315,7 +320,6 @@ async def upload_asset_endpoint(
                 status_code=400, detail=f"Error parsing labels: {str(e)}"
             )
 
-    asset_repository = AssetRepository(db)
     storage = StorageFactory.get_backend()
 
     ctx = ProcessorContext(
@@ -350,7 +354,7 @@ async def upload_asset_endpoint(
     return await upload_asset(
         file=file,
         user_id=UUID(str(current_user.id)),
-        asset_repository=asset_repository,
+        db=db,
         storage=storage,
         name=name,
         labels=parsed_labels,
@@ -493,13 +497,12 @@ async def create_asset_from_url(
             )
 
             # Use the existing upload logic
-            asset_repository = AssetRepository(db)
             storage = StorageFactory.get_backend()
 
             return await upload_asset(
                 file=downloaded_file,
                 user_id=UUID(str(current_user.id)),
-                asset_repository=asset_repository,
+                db=db,
                 storage=storage,
                 name=request.name,
                 labels=request.labels,
@@ -525,6 +528,7 @@ async def delete_asset(
     asset: Asset = Depends(get_asset_by_id),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    cache: AssetCache = Depends(get_asset_cache),
 ):
     """
     Delete an asset by ID.
@@ -537,7 +541,7 @@ async def delete_asset(
             status_code=403, detail="Not authorized to delete this asset"
         )
 
-    success = AssetRepository(db).delete_asset(asset.id)
+    success = DeleteAssetCommand(db, cache=cache).execute(asset.id)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete asset")
 
