@@ -61,7 +61,7 @@ pillow = "^12.0.0"
 pdf2image = "^1.17.0"
 passporteye = "^2.2.2"
 paddleocr = "^3.3.1"
-cryptography = "^48.0.0"
+cryptography = "^49.0.0"
 # tessera-sdk = { path = "../tessera-sdk-py/", develop = true }
 tessera-sdk = { git = "https://github.com/tesserahq/tessera-sdk-py.git", branch = "main" }
 uvicorn = "0.49.0"
