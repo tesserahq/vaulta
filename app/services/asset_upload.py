@@ -18,6 +18,13 @@ from app.storage.base import StorageBackend
 from app.constants.asset import AssetState
 from app.config import get_settings
 from app.services.processors.base import AssetProcessor, ProcessorContext
+from app.utils.token_utils import sign_serve_url, derive_secret
+
+# client_id embedded in server-minted serve_url tokens. verify_signed_url
+# re-derives the secret from whatever client_id is in the payload, so this
+# only needs to stay consistent between mint and verify, not match a real
+# Client row.
+_INTERNAL_SERVE_CLIENT_ID = "vaulta-internal"
 
 
 def _validate_file_size(asset_size: int) -> None:
@@ -40,6 +47,7 @@ async def upload_asset(
     labels: Optional[Dict[str, Any]] = None,
     processors: Optional[list[AssetProcessor]] = None,
     ctx: Optional[ProcessorContext] = None,
+    expires_in: Optional[int] = None,
 ) -> AssetUploadResponse:
     asset_repository = AssetRepository(db)
     create_command = CreateAssetCommand(db)
@@ -101,6 +109,18 @@ async def upload_asset(
             storage, "generate_serve_token"
         ):
             serve_url = f"/serve/{storage.generate_serve_token(str(asset.id))}"
+        elif expires_in is not None:
+            settings = get_settings()
+            capped_expires_in = min(expires_in, settings.max_serve_url_expiry)
+            derived_secret = derive_secret(
+                _INTERNAL_SERVE_CLIENT_ID, settings.master_secret_key
+            )
+            serve_url = sign_serve_url(
+                str(asset.id),
+                _INTERNAL_SERVE_CLIENT_ID,
+                capped_expires_in,
+                derived_secret,
+            )
         else:
             serve_url = url
 
