@@ -259,6 +259,15 @@ async def upload_asset_endpoint(
     config_id: Optional[UUID] = Form(None),
     summarize: bool = Form(False),
     project_id: Optional[str] = Form(None),
+    expires_in: Optional[int] = Form(
+        None,
+        description=(
+            "Optional: request a long-lived signed serve_url (seconds), "
+            "for content embedded outside the app (e.g. email images). "
+            "Capped server-side by MAX_SERVE_URL_EXPIRY. Omit for the "
+            "default short-lived URL."
+        ),
+    ),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -270,7 +279,10 @@ async def upload_asset_endpoint(
     - name: Optional custom name for the asset
     - labels: Optional JSON string containing a dictionary of labels
     - extract_data: Optional boolean flag to extract data from the document using DocumentAnalyzer
-    
+    - expires_in: Optional seconds; requests a long-lived signed serve_url (e.g. for
+      images embedded in outbound emails) instead of the default short-lived URL,
+      capped by MAX_SERVE_URL_EXPIRY
+
     File size limits:
     - Default maximum: 100MB
     - Configurable via MAX_FILE_SIZE_MB environment variable
@@ -360,6 +372,7 @@ async def upload_asset_endpoint(
         labels=parsed_labels,
         processors=processors,
         ctx=ctx,
+        expires_in=expires_in,
     )
 
 

@@ -44,6 +44,15 @@ class Settings(BaseSettings):
         default=None, json_schema_extra={"env": "ROLLBAR_ACCESS_TOKEN"}
     )  # Optional field
 
+    # Ceiling on how long a caller-requested serve_url (e.g. for email-embedded
+    # images) may live for. Prevents an upload caller from minting an
+    # effectively-unrevocable token for a sensitive asset.
+    max_serve_url_expiry: int = Field(
+        default=5 * 365 * 24 * 3600,  # 5 years
+        description="Maximum allowed expires_in (seconds) for a requested long-lived serve_url",
+        json_schema_extra={"env": "MAX_SERVE_URL_EXPIRY"},
+    )
+
     # Storage settings
     storage_backend: str = StorageProvider.S3
     local_storage_dir: str = Field(
