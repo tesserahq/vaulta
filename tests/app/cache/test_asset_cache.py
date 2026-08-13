@@ -81,4 +81,6 @@ class TestAssetCache:
 
         cache.invalidate(asset_id)
 
-        underlying.delete.assert_called_once_with(str(asset_id))
+        underlying.delete.assert_any_call(str(asset_id))
+        underlying.delete.assert_any_call(f"record:{asset_id}")
+        assert underlying.delete.call_count == 2
