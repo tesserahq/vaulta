@@ -100,6 +100,13 @@ async def serve_asset_via_signed_url(
         asset_repository = AssetRepository(db)
         metadata = get_asset_for_serving(asset_uuid, asset_repository, cache)
 
+        # Release the DB connection now: FastAPI doesn't close `Depends(get_db)`
+        # sessions until the full response (including a StreamingResponse body)
+        # has been sent, so without this the connection would sit checked out
+        # of the pool for the entire file transfer/S3 fetch instead of just
+        # this lookup.
+        db.close()
+
         if metadata is None:
             raise HTTPException(status_code=404, detail="Asset not found")
 

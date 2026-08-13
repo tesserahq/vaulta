@@ -4,6 +4,7 @@ from unittest.mock import patch, AsyncMock, Mock
 import httpx
 
 from app.config import get_settings
+from app.db import get_db
 from app.repositories.asset_repository import AssetRepository
 from app.routers.assets import get_storage_backend
 from app.routers.utils.dependencies import get_asset_cache
@@ -343,6 +344,44 @@ class TestServeAssetRoute:
         finally:
             del client.app.dependency_overrides[get_storage_backend]
             del client.app.dependency_overrides[get_asset_cache]
+
+    def test_serve_asset_closes_db_before_returning_response(
+        self, client, setup_asset, tmp_path
+    ):
+        """The DB session must be released as soon as the metadata lookup is
+        done, not held open for the duration of the file transfer. FastAPI
+        doesn't close `Depends(get_db)` sessions until the full response body
+        has been sent, so a slow/streamed response would otherwise hold a
+        pooled connection hostage for its entire duration."""
+        storage = LocalStorageBackend(storage_dir=tmp_path)
+        (storage.private_dir / str(setup_asset.id)).write_bytes(b"fake bytes")
+
+        underlying = Mock()
+        underlying.read.return_value = {
+            "found": True,
+            "mime_type": setup_asset.mime_type,
+            "filename": setup_asset.filename,
+        }
+        cache = AssetCache(underlying)
+
+        mock_db = Mock()
+
+        def override_get_db():
+            yield mock_db
+
+        client.app.dependency_overrides[get_storage_backend] = lambda: storage
+        client.app.dependency_overrides[get_asset_cache] = lambda: cache
+        client.app.dependency_overrides[get_db] = override_get_db
+        try:
+            payload = self._sign(str(setup_asset.id))
+            response = client.get(f"/assets/serve/{payload}")
+
+            assert response.status_code == 200
+            mock_db.close.assert_called_once()
+        finally:
+            del client.app.dependency_overrides[get_storage_backend]
+            del client.app.dependency_overrides[get_asset_cache]
+            del client.app.dependency_overrides[get_db]
 
     def test_serve_asset_cache_miss_populates_positive_cache_entry(
         self, client, setup_asset, tmp_path
