@@ -9,11 +9,11 @@ from app.cache.factory import AssetCacheFactory
 from app.config import get_settings
 from app.db import get_db
 from app.models.analysis_config import AnalysisConfig
-from app.models.asset import Asset
 from app.models.client import Client
 from app.repositories.analysis_config_repository import AnalysisConfigRepository
 from app.repositories.asset_repository import AssetRepository
 from app.repositories.client_repository import ClientRepository
+from app.schemas.asset import Asset as AssetSchema
 from app.services.analysis.base import DocumentAnalysisBackend
 from app.services.analysis.factory import AnalysisFactory
 
@@ -23,12 +23,25 @@ def get_asset_cache() -> AssetCache:
     return AssetCacheFactory.get_cache()
 
 
-def get_asset_by_id(asset_id: UUID, db: Session = Depends(get_db)) -> Asset:
-    """Get an asset by ID or raise 404."""
+def get_asset_by_id(
+    asset_id: UUID,
+    db: Session = Depends(get_db),
+    cache: AssetCache = Depends(get_asset_cache),
+):
+    """Get an asset by ID or raise 404. Reads through the asset-record cache."""
+    lookup = cache.read_record(asset_id)
+    if lookup.cached:
+        if lookup.asset is None:
+            raise HTTPException(status_code=404, detail="Asset not found")
+        return lookup.asset
+
     asset_repository = AssetRepository(db)
     asset = asset_repository.get_asset(asset_id)
     if not asset:
+        cache.write_record_not_found(asset_id)
         raise HTTPException(status_code=404, detail="Asset not found")
+
+    cache.write_record_found(asset_id, AssetSchema.model_validate(asset))
     return asset
 
 
