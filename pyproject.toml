@@ -66,7 +66,7 @@ cryptography = "^50.0.0"
 tessera-sdk = { git = "https://github.com/tesserahq/tessera-sdk-py.git", branch = "main" }
 uvicorn = "0.53.0"
 python-multipart = "^0.0.32"
-fastapi-pagination = "^0.15.16"
+fastapi-pagination = "^0.16.0"
 prometheus-fastapi-instrumentator = "^8.0.2"
 
 
