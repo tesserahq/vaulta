@@ -52,7 +52,7 @@ jobs:
             sleep 2
           done
       - name: Set up Python 3
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: 3.14
       - name: Install dependencies
@@ -93,7 +93,7 @@ jobs:
 
       - name: Set up Python
         if: steps.filter.outputs.docs == 'true'
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.14"
 
