@@ -13,10 +13,11 @@ PORT=${PORT:-8000}
 # --host 0.0.0.0: Bind to all network interfaces
 # --port $PORT: Use PORT environment variable or default to 8000
 # --limit-concurrency 1000: Maximum number of concurrent connections (prevents server overload)
-# --limit-max-requests 10000: Restart workers after this many requests (prevents memory leaks)
+# No --limit-max-requests: with a single process (no --workers), uvicorn exits
+# the whole server after N requests instead of recycling a worker, and the
+# container restart leaves the API without a healthy backend for several seconds.
 # --limit-request-fields 100: Maximum number of HTTP headers (important for multipart uploads)
 uvicorn app.main:app \
     --host 0.0.0.0 \
     --port $PORT \
-    --limit-concurrency 1000 \
-    --limit-max-requests 10000
+    --limit-concurrency 1000
