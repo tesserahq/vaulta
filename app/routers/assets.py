@@ -1,6 +1,7 @@
 from fastapi import APIRouter, UploadFile, Depends, HTTPException, Form, Query
 from typing import Optional, List, Dict, Any
 from fastapi.responses import FileResponse, StreamingResponse
+from starlette.background import BackgroundTask
 from app.storage.base import StorageBackend
 from app.storage.factory import StorageFactory
 from app.storage.local import LocalStorageBackend
@@ -138,18 +139,45 @@ async def serve_asset_via_signed_url(
         # This avoids exposing presigned URLs to clients and works with existing /serve/ tokens.
         presigned_url = await storage.get_url(asset_id)
 
-        async def stream_from_s3():
-            async with httpx.AsyncClient() as s3_client:
-                async with s3_client.stream("GET", presigned_url) as s3_response:
-                    async for chunk in s3_response.aiter_bytes(chunk_size=65536):
-                        yield chunk
+        # Open the upstream response before committing to a 200, so an S3
+        # error isn't streamed back to the client as the asset (and then
+        # cached as immutable below).
+        s3_client = httpx.AsyncClient()
+        try:
+            s3_response = await s3_client.send(
+                s3_client.build_request("GET", presigned_url), stream=True
+            )
+        except Exception:
+            await s3_client.aclose()
+            raise
+
+        async def close_upstream():
+            await s3_response.aclose()
+            await s3_client.aclose()
+
+        if s3_response.status_code != 200:
+            await close_upstream()
+            if s3_response.status_code == 404:
+                raise HTTPException(status_code=404, detail="Asset not found")
+            raise HTTPException(
+                status_code=502, detail="Error fetching asset from storage"
+            )
+
+        # Asset bytes never change for a given id, so serve URLs (e.g. images
+        # embedded in emails) can be cached by clients/proxies/CDNs for good.
+        headers = {
+            "Content-Disposition": f"inline; filename={metadata.filename}",
+            "Cache-Control": "public, max-age=31536000, immutable",
+        }
+        for name in ("Content-Length", "Content-Encoding", "ETag", "Last-Modified"):
+            if name in s3_response.headers:
+                headers[name] = s3_response.headers[name]
 
         return StreamingResponse(
-            stream_from_s3(),
+            s3_response.aiter_raw(chunk_size=65536),
             media_type=metadata.mime_type,
-            headers={
-                "Content-Disposition": f"inline; filename={metadata.filename}",
-            },
+            headers=headers,
+            background=BackgroundTask(close_upstream),
         )
 
     except HTTPException:
