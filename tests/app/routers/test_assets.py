@@ -434,3 +434,70 @@ class TestServeAssetRoute:
             )
         finally:
             del client.app.dependency_overrides[get_asset_cache]
+
+    def _serve_from_s3(self, client, setup_asset, status_code, body, headers=None):
+        """GET a signed serve URL with S3 (non-local) storage, where the
+        presigned-URL fetch is answered with `status_code`/`body`/`headers`."""
+        real_async_client = httpx.AsyncClient
+
+        async def stream_body():
+            # An async iterator keeps the mock response un-read, like a real
+            # streamed S3 response (bytes content would be pre-consumed).
+            yield body
+
+        transport = httpx.MockTransport(
+            lambda request: httpx.Response(
+                status_code, content=stream_body(), headers=headers
+            )
+        )
+
+        client.app.dependency_overrides[get_storage_backend] = MockStorageBackend
+        try:
+            with patch(
+                "app.routers.assets.httpx.AsyncClient",
+                lambda: real_async_client(transport=transport),
+            ):
+                payload = self._sign(str(setup_asset.id))
+                return client.get(f"/assets/serve/{payload}")
+        finally:
+            del client.app.dependency_overrides[get_storage_backend]
+
+    def test_serve_asset_s3_streams_bytes_with_long_lived_cache_headers(
+        self, client, setup_asset
+    ):
+        """Email-embedded serve URLs must be cacheable by clients/proxies, and
+        S3's validators passed through."""
+        response = self._serve_from_s3(
+            client,
+            setup_asset,
+            200,
+            b"image bytes",
+            headers={"ETag": '"abc"', "Content-Length": "11"},
+        )
+
+        assert response.status_code == 200
+        assert response.content == b"image bytes"
+        assert response.headers["cache-control"] == (
+            "public, max-age=31536000, immutable"
+        )
+        assert response.headers["etag"] == '"abc"'
+        assert response.headers["content-length"] == "11"
+
+    def test_serve_asset_s3_missing_object_returns_404_uncached(
+        self, client, setup_asset
+    ):
+        """An S3 404 must not be streamed back as a (cacheable) 200."""
+        response = self._serve_from_s3(client, setup_asset, 404, b"<Error/>")
+
+        assert response.status_code == 404
+        assert "cache-control" not in response.headers
+
+    def test_serve_asset_s3_upstream_error_returns_502_uncached(
+        self, client, setup_asset
+    ):
+        """Other S3 errors (e.g. an expired presign -> 403) must surface as
+        502, never as the asset with immutable cache headers."""
+        response = self._serve_from_s3(client, setup_asset, 403, b"<Error/>")
+
+        assert response.status_code == 502
+        assert "cache-control" not in response.headers
