@@ -46,7 +46,7 @@ MASTER_SECRET_KEY=<hex>   # Used for signed URLs; generate with: python3 -c 'imp
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/vaulta
 ```
 
-Tests use a separate database — set `ENV=test` (or `ENVIRONMENT=test`) to activate it. The test suite creates `vaulta_test` automatically if it doesn't exist.
+Tests use a separate database — set `ENV=test` (or `ENVIRONMENT=test`) to activate it. The database must already exist (`createdb vaulta_test`): `tests/conftest.py`'s `ensure_test_database()` connects *to* `vaulta_test` in order to create it, so it can't bootstrap a missing one.
 
 See `docs/document_analysis.md` for provider-specific env vars (Textract, Google DAI, Claude).
 
@@ -63,5 +63,7 @@ Auth is bypassed in tests via `MockAuthenticationMiddleware`; the test user is i
 **`get_analysis_backend` is a plain function, not a `Depends`** — because it takes a `config_id` Form param alongside other Form fields, which FastAPI can't inject via `Depends`. It's called directly in the route handler body.
 
 **AnalysisConfig default invariant** — exactly one row must have `is_default=True` at all times. The repository enforces this; attempting to demote the active default raises `ValueError` (surfaced as HTTP 409).
+
+**Serve URLs are a public contract** — `serve_url`s (`/assets/serve/{asset_id}.{client_id}.{expires_at}.{hmac}`, minted on upload when `expires_in` is passed, capped by `MAX_SERVE_URL_EXPIRY`) are embedded in emails that have already been sent (looply-portal, sendly-portal). Changing the route, the payload/signature format or `derive_secret`, or rotating `MASTER_SECRET_KEY`, breaks every image in those emails until they expire. The S3 branch streams bytes through Vaulta and must never return an upstream S3 error as a cacheable 200 — successful responses are `Cache-Control: immutable` (see #152, and #153 for the CloudFront plan).
 
 **Lazy provider imports** — all cloud SDK imports (`boto3`, `google.cloud`, `anthropic`) are deferred to `__init__` so the app starts even if optional deps aren't installed.
