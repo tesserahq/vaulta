@@ -54,7 +54,7 @@ jobs:
       - name: Set up Python 3
         uses: actions/setup-python@v7
         with:
-          python-version: 3.14
+          python-version: 3.15
       - name: Install dependencies
         run: |
           pipx install poetry && poetry install
@@ -95,7 +95,7 @@ jobs:
         if: steps.filter.outputs.docs == 'true'
         uses: actions/setup-python@v7
         with:
-          python-version: "3.14"
+          python-version: "3.15"
 
       - name: Install MkDocs + TechDocs core
         if: steps.filter.outputs.docs == 'true'

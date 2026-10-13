@@ -20,7 +20,7 @@ packages = [
 dev = "run:dev"
 
 [tool.poetry.dependencies]
-python = ">=3.14,<3.15"
+python = ">=3.15,<3.16"
 fastapi = "v0.141.1"
 python-dotenv = "^1.2.4"
 gunicorn = "26.2.0"
