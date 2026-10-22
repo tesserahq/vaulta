@@ -102,13 +102,14 @@ These rules are proposed requirements for review. Exact Custos role names and th
 - On attachment creation or replacement, verify that the Vaulta asset exists, belongs to the same project, and is eligible for attachment before committing the relationship. A caller cannot use a product's service as a privileged URL signer for an arbitrary asset ID.
 - Each consuming product must inventory every field that holds a Vaulta asset ID. Each such field is an attachment point that must validate project and eligibility on create and replace, and it must not mint anonymous access during serialization. New fields must be added to the inventory and use the shared attachment validator.
 - Consumer frontends and client SDKs carry validated project context. Coordinate releases across Vaulta, each consuming product's API, its frontend, and any SDK (see [Shareable media compatibility](#shareable-media-compatibility)).
-- Deletion has one enforcement point. Route it through the consuming product's API, which removes the business reference and the Vaulta asset together. Frontends should not call Vaulta's delete endpoint directly with the user token, because then the product never checks the user's permission and its rows can reference deleted assets.
+- Frontends may call Vaulta directly with the user's token. Vaulta enforces access on every route: each request is authorized against Custos for the asset's project, whatever client sent it. Direct calls do not bypass the project boundary.
+- A direct delete removes the asset in Vaulta, but the consuming product's records may still reference it. Each product must handle that case (see Further Notes).
 - Access URLs must lead to an authenticated, authorized download flow. Serializing an asset identifier must not mint anonymous access.
 
 ### Private file delivery
 
-- Provide an authenticated private download contract. The recommended browser flow is a same-origin endpoint in the consuming product, using its existing authenticated session. The product validates the document relationship and permission, then streams bytes from Vaulta using scoped service access. Equivalent clients may use a protected Vaulta endpoint with a valid user token.
-- Support the chosen browser flow without requiring a bearer token in a URL. Review previews and range requests so that every new content request is authorized.
+- Provide an authenticated private download contract. A frontend may download directly from Vaulta with the user's token, subject to the same Custos check as any other call.
+- Browser media elements (`<img>`, `<video>`) cannot send an `Authorization` header, so previews need another way to authenticate. The options are a same-origin endpoint in the consuming product that streams from Vaulta, or a same-site credential the browser sends automatically. Choose one per product. Do not put a bearer token in a URL. Review range requests so that every new content request is authorized.
 - Use `Cache-Control: private, no-store` for private content and sensitive metadata responses. Ensure proxies, CDN configuration, redirects, and error responses do not create a public caching bypass. Under `no-store`, every rendered private image is a fresh authorized request streamed through the consuming product from Vaulta, so a page with N images makes N such requests on each render. Measure that cost on list pages before release. For that image class only, `private, max-age=<short>` is the fallback, and it needs explicit approval because it delays revocation for the cached duration.
 - Keep storage private and prevent direct bucket/object access from bypassing Vaulta authorization. Private responses must not redirect to publicly reusable object URLs.
 - Reject private assets on anonymous legacy serving routes even when their signature is valid. A signature is not an override for private classification.
@@ -179,6 +180,8 @@ Issue 126 should be closed only when unauthorized metadata access is prevented a
 
 Review decisions before implementation:
 
+- Choose how consuming products handle references to deleted assets: either the product's delete flow removes its own reference first and then calls Vaulta, or Vaulta publishes an asset-deleted event that products consume to clear the reference.
+
 - Confirm the Custos domain and role conventions across all Tessera services, including the deactivation signals and the service delegation mechanism.
 - Confirm how service identities are granted project access in Custos, and that M2M tokens from Auth0 carry the client identity the audit log will record (`azp` or `sub`).
 - Confirm the project ID format. eventa uses UUIDs, but Vaulta's current `project_id` form field accepts any string and defaults to `"*"`. Existing values must be checked before the column is typed as UUID.
@@ -191,7 +194,7 @@ Linden is the first product to adopt this design. Its requirements are the refer
 
 - **Project mapping:** a Linden account is a project. Linden resolves each document's project from its business entity.
 - **Automatic avatar import:** `CreateAccountCommand._get_avatar_resource` imports the identity avatar through `POST /assets/from-url` using an M2M token with no project context, and Linden signs serve URLs for it. This call must carry project context going forward. Existing avatar assets are legacy rows; Linden decides whether to keep them shareable or assign their project through its person→project mapping. They are identified through Linden's `avatar` fields, not guessed from Vaulta data.
-- **Deletion:** linden-portal currently calls `DELETE /assets/{id}` on Vaulta directly with the user token, so Linden never checks the user's permission and Linden rows end up referencing deleted assets. This is the case the deletion rule above addresses.
+- **Deletion:** linden-portal calls `DELETE /assets/{id}` on Vaulta directly with the user token. Vaulta checks the user's delete permission, but Linden's business rows aren't updated, so they can end up referencing deleted assets. Linden must handle that reference (see Further Notes).
 - **Attachment inventory:** each field below currently mints a signed serve URL through `get_signed_url_if_exists` during serialization, and each must validate project and eligibility on create and replace.
 
 | Linden schema | Asset field(s) | Proposed classification |
