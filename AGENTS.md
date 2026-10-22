@@ -46,6 +46,8 @@ MASTER_SECRET_KEY=<hex>   # Used for signed URLs; generate with: python3 -c 'imp
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/vaulta
 ```
 
+Local Postgres and Redis run in Docker containers that the developer starts. Do not install, start, or stop them (no `brew install`, `brew services`, or `docker run` for them). If they are unreachable, tell the developer and stop; do not try to fix the services yourself.
+
 Tests use a separate database — set `ENV=test` (or `ENVIRONMENT=test`) to activate it. The database must already exist (`createdb vaulta_test`): `tests/conftest.py`'s `ensure_test_database()` connects *to* `vaulta_test` in order to create it, so it can't bootstrap a missing one.
 
 See `docs/document_analysis.md` for provider-specific env vars (Textract, Google DAI, Claude).
