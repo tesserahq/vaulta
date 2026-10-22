@@ -68,6 +68,19 @@ Auth is bypassed in tests via `MockAuthenticationMiddleware`; the test user is i
 
 **Lazy provider imports** — all cloud SDK imports (`boto3`, `google.cloud`, `anthropic`) are deferred to `__init__` so the app starts even if optional deps aren't installed.
 
+## Shared Tessera docs
+
+Cross-service knowledge lives in [tesserahq/docs](https://github.com/tesserahq/docs) (locally `~/sites/tesserahq/docs` when available): the glossary, service ownership, and Custos authorization conventions. Read it before writing or reviewing a PRD, or changing authorization, project scoping, or asset classification.
+
+Update those docs whenever you learn something important that other Tessera services or products would need to know, for example:
+
+- A term is used differently in code, a PRD, or another service than in the glossary.
+- A Custos domain, resolver, or permission convention is confirmed, changed, or found to be inconsistent.
+- A service's responsibility changes, or a new cross-service contract is added.
+- An open decision in `docs/authorization.md` or `docs/services.md` is resolved.
+
+Keep Vaulta-specific detail (routes, schema, migrations) in this repo's docs and PRDs. Shared docs should describe the platform and stay product-agnostic. Make the change on a branch in the docs repo and open a PR; do not push to its `main`. Mention the docs change in your final message so the user can review it.
+
 ## Database migrations
 
 - Migrations run only in the API's `start.sh`. During a deploy, old and new containers overlap (the API rolls; workers deploy separately), so every migration must work with the previous release's code.

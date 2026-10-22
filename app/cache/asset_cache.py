@@ -49,11 +49,14 @@ class AssetCache:
     def __init__(self, cache: Cache):
         self._cache = cache
 
+    # Keys are versioned (PRD 0006). Entries written before the project and
+    # classification fields existed live under the old keys and are never read,
+    # so they cannot be served with a default classification.
     def _key(self, asset_id: UUID) -> str:
-        return str(asset_id)
+        return f"v2:{asset_id}"
 
     def _record_key(self, asset_id: UUID) -> str:
-        return f"record:{asset_id}"
+        return f"record:v2:{asset_id}"
 
     def read(self, asset_id: UUID) -> AssetCacheLookup:
         entry = self._cache.read(self._key(asset_id))

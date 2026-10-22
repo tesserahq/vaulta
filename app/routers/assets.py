@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, Depends, HTTPException, Form, Query
+from fastapi import APIRouter, UploadFile, Depends, HTTPException, Form, Query, Request
 from typing import Optional, List, Dict, Any
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.background import BackgroundTask
@@ -8,6 +8,8 @@ from app.storage.local import LocalStorageBackend
 from uuid import UUID
 from sqlalchemy.orm import Session
 from app.cache.asset_cache import AssetCache
+from app.constants.asset import AssetClassification
+from app.services.project_authorization import GLOBAL_DOMAIN, authorize_asset_create
 from app.commands.assets.delete_asset_command import DeleteAssetCommand
 from app.db import get_db
 from app.services.asset_lookup import get_asset_for_serving
@@ -287,6 +289,7 @@ async def get_assets_by_labels(
 
 @router.post("", response_model=AssetUploadResponse)
 async def upload_asset_endpoint(
+    request: Request,
     file: UploadFile = Depends(get_validated_file),
     name: Optional[str] = Form(None),
     labels: Optional[str] = Form(None),
@@ -294,6 +297,13 @@ async def upload_asset_endpoint(
     config_id: Optional[UUID] = Form(None),
     summarize: bool = Form(False),
     project_id: Optional[str] = Form(None),
+    visibility: Optional[str] = Form(
+        None,
+        description=(
+            "Access class: 'private' (default) or 'shareable'. 'shareable' makes the "
+            "asset reachable by signed serve URL without login."
+        ),
+    ),
     expires_in: Optional[int] = Form(
         None,
         description=(
@@ -398,6 +408,10 @@ async def upload_asset_endpoint(
         else:
             processors.append(SummarizationProcessor(ClaudeSummarizationService()))
 
+    project_scope, classification = await _resolve_upload_scope(
+        request, current_user, project_id, visibility
+    )
+
     return await upload_asset(
         file=file,
         user_id=UUID(str(current_user.id)),
@@ -408,7 +422,59 @@ async def upload_asset_endpoint(
         processors=processors,
         ctx=ctx,
         expires_in=expires_in,
+        project_id=project_scope,
+        classification=classification,
     )
+
+
+async def _resolve_upload_scope(
+    request: Request,
+    current_user: User,
+    project_id: Optional[str],
+    visibility: Optional[str],
+) -> tuple[Optional[UUID], str]:
+    """Validate and authorize where an upload goes (PRD 0006).
+
+    Every upload names a project, or "*" for global scope. Custos decides whether the
+    caller may create assets there; a Custos failure refuses the upload.
+    Returns the owning project (None for global scope) and the access class.
+    """
+    if project_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="project_id is required (use '*' for global scope)",
+        )
+    project_scope = _parse_project_scope(project_id)
+    classification = _parse_classification(visibility)
+    await authorize_asset_create(
+        request,
+        UUID(str(current_user.id)),
+        GLOBAL_DOMAIN if project_scope is None else str(project_scope),
+    )
+    return project_scope, classification
+
+
+def _parse_project_scope(project_id: str) -> Optional[UUID]:
+    """Return the owning project for an upload; "*" (global scope) is None."""
+    if project_id == "*":
+        return None
+    try:
+        return UUID(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="project_id must be a UUID or '*'")
+
+
+def _parse_classification(visibility: Optional[str]) -> str:
+    """Return the access class for an upload. Defaults to private."""
+    if visibility is None:
+        return AssetClassification.PRIVATE.value
+    valid = {classification.value for classification in AssetClassification}
+    if visibility not in valid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"visibility must be one of: {', '.join(sorted(valid))}",
+        )
+    return visibility
 
 
 class AssetDownloadRequest(BaseModel):
@@ -419,10 +485,17 @@ class AssetDownloadRequest(BaseModel):
     labels: Optional[Dict[str, Any]] = Field(
         None, description="Optional labels for the asset"
     )
+    project_id: Optional[str] = Field(
+        None, description="Owning project UUID, or '*' for global scope (required)"
+    )
+    visibility: Optional[str] = Field(
+        None, description="'private' (default) or 'shareable'"
+    )
 
 
 @router.post("/from-url", response_model=AssetUploadResponse)
 async def create_asset_from_url(
+    http_request: Request,
     request: AssetDownloadRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -452,6 +525,12 @@ async def create_asset_from_url(
     }
     ```
     """
+    # Scope is checked before the download's broad exception handler below, which
+    # would otherwise turn an authorization failure into a 500.
+    project_scope, classification = await _resolve_upload_scope(
+        http_request, current_user, request.project_id, request.visibility
+    )
+
     # Validate URL
     try:
         parsed_url = urlparse(request.url)
@@ -554,6 +633,8 @@ async def create_asset_from_url(
                 storage=storage,
                 name=request.name,
                 labels=request.labels,
+                project_id=project_scope,
+                classification=classification,
             )
 
     except httpx.HTTPStatusError as e:

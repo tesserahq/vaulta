@@ -23,7 +23,9 @@ class User(UserMixin, Base, TimestampMixin):
         ),
     )
 
-    assets = relationship("Asset", back_populates="user", cascade="all, delete-orphan")
+    # No delete cascade: deleting a user must not delete project documents they
+    # uploaded (PRD 0006). The FK is nullable, so SQLAlchemy nulls user_id instead.
+    assets = relationship("Asset", back_populates="user")
 
     def __init__(self, **kwargs):
         rest = self._build_user_attributes_from_kwargs(kwargs)

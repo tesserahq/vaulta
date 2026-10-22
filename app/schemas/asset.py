@@ -2,7 +2,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime
-from app.constants.asset import AssetState
+from app.constants.asset import AssetClassification, AssetState
 
 
 class AssetBase(BaseModel):
@@ -35,7 +35,10 @@ class AssetBase(BaseModel):
 class AssetCreate(AssetBase):
     """Schema for creating a new asset."""
 
-    pass
+    project_id: Optional[UUID] = None
+    """Owning project. None for global-scope (admin) uploads."""
+    classification: str = AssetClassification.PRIVATE.value
+    """"private" or "shareable". Defaults to private (PRD 0006)."""
 
 
 class AssetUpdate(BaseModel):

@@ -15,7 +15,7 @@ from app.schemas.asset import (
     AssetUploadResponse,
 )
 from app.storage.base import StorageBackend
-from app.constants.asset import AssetState
+from app.constants.asset import AssetClassification, AssetState
 from app.config import get_settings
 from app.services.processors.base import AssetProcessor, ProcessorContext
 from app.utils.token_utils import sign_serve_url, derive_secret
@@ -48,6 +48,8 @@ async def upload_asset(
     processors: Optional[list[AssetProcessor]] = None,
     ctx: Optional[ProcessorContext] = None,
     expires_in: Optional[int] = None,
+    project_id: Optional[UUID] = None,
+    classification: str = AssetClassification.PRIVATE.value,
 ) -> AssetUploadResponse:
     asset_repository = AssetRepository(db)
     create_command = CreateAssetCommand(db)
@@ -68,6 +70,8 @@ async def upload_asset(
         labels=labels or {},
         state=AssetState.PENDING.value,
         state_message="Asset record created, waiting for upload",
+        project_id=project_id,
+        classification=classification,
     )
     asset = create_command.execute(asset_data, user_id)
 
