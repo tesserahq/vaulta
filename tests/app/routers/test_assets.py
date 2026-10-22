@@ -26,6 +26,19 @@ class MockStorageBackend:
         return True
 
 
+@pytest.fixture(autouse=True)
+def allow_custos_asset_create():
+    """These tests exercise upload behavior, not Custos; allow every create check.
+
+    The denial and wildcard cases are covered in test_asset_upload_scope.py, which
+    patches this function again with its own behavior.
+    """
+    with patch(
+        "app.routers.assets.authorize_asset_create", new=AsyncMock(return_value=None)
+    ):
+        yield
+
+
 @pytest.fixture
 def mock_storage_factory():
     backend = MockStorageBackend()
@@ -206,7 +219,9 @@ class TestAssetsRouter:
             "labels": {"source": "external", "category": "image"},
         }
 
-        response = client.post("/assets/from-url", json=request_data)
+        response = client.post(
+            "/assets/from-url", json={"project_id": "*", **request_data}
+        )
         assert response.status_code == 200
 
         data = response.json()
@@ -224,7 +239,9 @@ class TestAssetsRouter:
         """Test downloading an asset with invalid URL."""
         request_data = {"url": "invalid-url", "name": "Test File"}
 
-        response = client.post("/assets/from-url", json=request_data)
+        response = client.post(
+            "/assets/from-url", json={"project_id": "*", **request_data}
+        )
         assert response.status_code == 400
         assert "Invalid URL format" in response.json()["detail"]
 
@@ -247,7 +264,9 @@ class TestAssetsRouter:
             "name": "Test File",
         }
 
-        response = client.post("/assets/from-url", json=request_data)
+        response = client.post(
+            "/assets/from-url", json={"project_id": "*", **request_data}
+        )
         assert response.status_code == 400
         assert "Failed to download file from URL: HTTP 404" in response.json()["detail"]
 
@@ -262,7 +281,9 @@ class TestAssetsRouter:
             "name": "Test File",
         }
 
-        response = client.post("/assets/from-url", json=request_data)
+        response = client.post(
+            "/assets/from-url", json={"project_id": "*", **request_data}
+        )
         assert response.status_code == 400
         assert (
             "Failed to download file from URL: Connection failed"
@@ -283,7 +304,9 @@ class TestAssetsRouter:
 
         request_data = {"url": "https://www.hello.com/document.pdf"}
 
-        response = client.post("/assets/from-url", json=request_data)
+        response = client.post(
+            "/assets/from-url", json={"project_id": "*", **request_data}
+        )
         assert response.status_code == 200
 
         data = response.json()

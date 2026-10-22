@@ -55,3 +55,38 @@ def test_invalid_visibility_is_rejected_before_custos(client, authorize_mock):
 
     assert response.status_code == 400
     authorize_mock.assert_not_awaited()
+
+
+def test_missing_project_is_rejected_before_custos(client, authorize_mock):
+    response = client.post("/assets", files=UPLOAD_FILE)
+
+    assert response.status_code == 400
+    assert "project_id is required" in response.json()["detail"]
+    authorize_mock.assert_not_awaited()
+
+
+def test_from_url_missing_project_is_rejected_before_download(client, authorize_mock):
+    with patch("httpx.AsyncClient.get") as mock_get:
+        response = client.post(
+            "/assets/from-url", json={"url": "https://www.hello.com/document.pdf"}
+        )
+
+    assert response.status_code == 400
+    assert "project_id is required" in response.json()["detail"]
+    authorize_mock.assert_not_awaited()
+    mock_get.assert_not_called()
+
+
+def test_from_url_denied_project_returns_403_not_500(client, authorize_mock):
+    with patch("httpx.AsyncClient.get") as mock_get:
+        response = client.post(
+            "/assets/from-url",
+            json={
+                "url": "https://www.hello.com/document.pdf",
+                "project_id": str(uuid4()),
+            },
+        )
+
+    assert response.status_code == 403
+    authorize_mock.assert_awaited_once()
+    mock_get.assert_not_called()

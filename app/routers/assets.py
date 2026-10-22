@@ -408,16 +408,9 @@ async def upload_asset_endpoint(
         else:
             processors.append(SummarizationProcessor(ClaudeSummarizationService()))
 
-    project_scope = _parse_project_scope(project_id)
-    classification = _parse_classification(visibility)
-    if project_id is not None:
-        # An explicit project (or "*" for global scope) must be authorized by Custos.
-        # A missing project is not checked yet; enforcement covers it in a later release.
-        await authorize_asset_create(
-            request,
-            UUID(str(current_user.id)),
-            GLOBAL_DOMAIN if project_scope is None else str(project_scope),
-        )
+    project_scope, classification = await _resolve_upload_scope(
+        request, current_user, project_id, visibility
+    )
 
     return await upload_asset(
         file=file,
@@ -434,14 +427,36 @@ async def upload_asset_endpoint(
     )
 
 
-def _parse_project_scope(project_id: Optional[str]) -> Optional[UUID]:
-    """Return the owning project for an upload.
+async def _resolve_upload_scope(
+    request: Request,
+    current_user: User,
+    project_id: Optional[str],
+    visibility: Optional[str],
+) -> tuple[Optional[UUID], str]:
+    """Validate and authorize where an upload goes (PRD 0006).
 
-    A missing project or "*" (global scope) is stored as NULL. Any other value must
-    be a UUID. Enforcement that only administrators may use global scope comes in a
-    later release of PRD 0006.
+    Every upload names a project, or "*" for global scope. Custos decides whether the
+    caller may create assets there; a Custos failure refuses the upload.
+    Returns the owning project (None for global scope) and the access class.
     """
-    if project_id is None or project_id == "*":
+    if project_id is None:
+        raise HTTPException(
+            status_code=400,
+            detail="project_id is required (use '*' for global scope)",
+        )
+    project_scope = _parse_project_scope(project_id)
+    classification = _parse_classification(visibility)
+    await authorize_asset_create(
+        request,
+        UUID(str(current_user.id)),
+        GLOBAL_DOMAIN if project_scope is None else str(project_scope),
+    )
+    return project_scope, classification
+
+
+def _parse_project_scope(project_id: str) -> Optional[UUID]:
+    """Return the owning project for an upload; "*" (global scope) is None."""
+    if project_id == "*":
         return None
     try:
         return UUID(project_id)
@@ -470,10 +485,17 @@ class AssetDownloadRequest(BaseModel):
     labels: Optional[Dict[str, Any]] = Field(
         None, description="Optional labels for the asset"
     )
+    project_id: Optional[str] = Field(
+        None, description="Owning project UUID, or '*' for global scope (required)"
+    )
+    visibility: Optional[str] = Field(
+        None, description="'private' (default) or 'shareable'"
+    )
 
 
 @router.post("/from-url", response_model=AssetUploadResponse)
 async def create_asset_from_url(
+    http_request: Request,
     request: AssetDownloadRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -503,6 +525,12 @@ async def create_asset_from_url(
     }
     ```
     """
+    # Scope is checked before the download's broad exception handler below, which
+    # would otherwise turn an authorization failure into a 500.
+    project_scope, classification = await _resolve_upload_scope(
+        http_request, current_user, request.project_id, request.visibility
+    )
+
     # Validate URL
     try:
         parsed_url = urlparse(request.url)
@@ -605,6 +633,8 @@ async def create_asset_from_url(
                 storage=storage,
                 name=request.name,
                 labels=request.labels,
+                project_id=project_scope,
+                classification=classification,
             )
 
     except httpx.HTTPStatusError as e:
