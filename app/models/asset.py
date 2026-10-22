@@ -22,8 +22,14 @@ class Asset(Base, TimestampMixin):
     mime_type = Column(String, nullable=False)  # Asset type
     size = Column(Integer, nullable=False)  # Asset size in bytes
     user_id = Column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
-    )  # Owner of the asset
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )  # Uploader of the asset (audit only; not the authorization boundary)
+    project_id = Column(
+        UUID(as_uuid=True), nullable=True, index=True
+    )  # Owning project; NULL for global-scope (admin) and legacy assets
+    classification = Column(
+        String, nullable=True
+    )  # "private" or "shareable"; NULL means legacy (PRD 0006)
     labels = Column(JSONB, default=dict, nullable=False)  # Dictionary of labels
     state = Column(String, nullable=False)  # Asset state
     state_message = Column(

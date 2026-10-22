@@ -110,7 +110,7 @@ class TestAssetsRouter:
             assert response.status_code == 200
             underlying.write.assert_called_once()
             key, value = underlying.write.call_args.args
-            assert key == f"record:{setup_asset.id}"
+            assert key == f"record:v2:{setup_asset.id}"
             assert value["found"] is True
             assert value["asset"]["id"] == str(setup_asset.id)
             assert underlying.write.call_args.kwargs == {"ttl": 600}
@@ -130,7 +130,7 @@ class TestAssetsRouter:
 
             assert response.status_code == 404
             underlying.write.assert_called_once_with(
-                f"record:{missing_id}", {"found": False}, ttl=60
+                f"record:v2:{missing_id}", {"found": False}, ttl=60
             )
         finally:
             del client.app.dependency_overrides[get_asset_cache]
@@ -167,8 +167,8 @@ class TestAssetsRouter:
             response = client.delete(f"/assets/{setup_asset.id}")
 
             assert response.status_code == 200
-            underlying.delete.assert_any_call(str(setup_asset.id))
-            underlying.delete.assert_any_call(f"record:{setup_asset.id}")
+            underlying.delete.assert_any_call(f"v2:{setup_asset.id}")
+            underlying.delete.assert_any_call(f"record:v2:{setup_asset.id}")
         finally:
             del client.app.dependency_overrides[get_asset_cache]
 
@@ -402,7 +402,7 @@ class TestServeAssetRoute:
 
             assert response.status_code == 200
             underlying.write.assert_called_once_with(
-                str(setup_asset.id),
+                f"v2:{setup_asset.id}",
                 {
                     "found": True,
                     "mime_type": setup_asset.mime_type,
@@ -430,7 +430,7 @@ class TestServeAssetRoute:
 
             assert response.status_code == 404
             underlying.write.assert_called_once_with(
-                str(missing_id), {"found": False}, ttl=60
+                f"v2:{missing_id}", {"found": False}, ttl=60
             )
         finally:
             del client.app.dependency_overrides[get_asset_cache]

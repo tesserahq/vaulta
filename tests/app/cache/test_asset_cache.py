@@ -20,7 +20,7 @@ class TestAssetCache:
 
         assert result.cached is False
         assert result.metadata is None
-        underlying.read.assert_called_once_with(str(asset_id))
+        underlying.read.assert_called_once_with(f"v2:{asset_id}")
 
     def test_read_positive_hit(self):
         underlying = Mock()
@@ -58,7 +58,7 @@ class TestAssetCache:
         )
 
         underlying.write.assert_called_once_with(
-            str(asset_id),
+            f"v2:{asset_id}",
             {"found": True, "mime_type": "image/png", "filename": "a.png"},
             ttl=POSITIVE_TTL_SECONDS,
         )
@@ -71,7 +71,7 @@ class TestAssetCache:
         cache.write_not_found(asset_id)
 
         underlying.write.assert_called_once_with(
-            str(asset_id), {"found": False}, ttl=NEGATIVE_TTL_SECONDS
+            f"v2:{asset_id}", {"found": False}, ttl=NEGATIVE_TTL_SECONDS
         )
 
     def test_invalidate_deletes_by_key(self):
@@ -81,6 +81,6 @@ class TestAssetCache:
 
         cache.invalidate(asset_id)
 
-        underlying.delete.assert_any_call(str(asset_id))
-        underlying.delete.assert_any_call(f"record:{asset_id}")
+        underlying.delete.assert_any_call(f"v2:{asset_id}")
+        underlying.delete.assert_any_call(f"record:v2:{asset_id}")
         assert underlying.delete.call_count == 2

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, Depends, HTTPException, Form, Query
+from fastapi import APIRouter, UploadFile, Depends, HTTPException, Form, Query, Request
 from typing import Optional, List, Dict, Any
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.background import BackgroundTask
@@ -8,6 +8,8 @@ from app.storage.local import LocalStorageBackend
 from uuid import UUID
 from sqlalchemy.orm import Session
 from app.cache.asset_cache import AssetCache
+from app.constants.asset import AssetClassification
+from app.services.project_authorization import GLOBAL_DOMAIN, authorize_asset_create
 from app.commands.assets.delete_asset_command import DeleteAssetCommand
 from app.db import get_db
 from app.services.asset_lookup import get_asset_for_serving
@@ -287,6 +289,7 @@ async def get_assets_by_labels(
 
 @router.post("", response_model=AssetUploadResponse)
 async def upload_asset_endpoint(
+    request: Request,
     file: UploadFile = Depends(get_validated_file),
     name: Optional[str] = Form(None),
     labels: Optional[str] = Form(None),
@@ -294,6 +297,13 @@ async def upload_asset_endpoint(
     config_id: Optional[UUID] = Form(None),
     summarize: bool = Form(False),
     project_id: Optional[str] = Form(None),
+    visibility: Optional[str] = Form(
+        None,
+        description=(
+            "Access class: 'private' (default) or 'shareable'. 'shareable' makes the "
+            "asset reachable by signed serve URL without login."
+        ),
+    ),
     expires_in: Optional[int] = Form(
         None,
         description=(
@@ -398,6 +408,17 @@ async def upload_asset_endpoint(
         else:
             processors.append(SummarizationProcessor(ClaudeSummarizationService()))
 
+    project_scope = _parse_project_scope(project_id)
+    classification = _parse_classification(visibility)
+    if project_id is not None:
+        # An explicit project (or "*" for global scope) must be authorized by Custos.
+        # A missing project is not checked yet; enforcement covers it in a later release.
+        await authorize_asset_create(
+            request,
+            UUID(str(current_user.id)),
+            GLOBAL_DOMAIN if project_scope is None else str(project_scope),
+        )
+
     return await upload_asset(
         file=file,
         user_id=UUID(str(current_user.id)),
@@ -408,7 +429,37 @@ async def upload_asset_endpoint(
         processors=processors,
         ctx=ctx,
         expires_in=expires_in,
+        project_id=project_scope,
+        classification=classification,
     )
+
+
+def _parse_project_scope(project_id: Optional[str]) -> Optional[UUID]:
+    """Return the owning project for an upload.
+
+    A missing project or "*" (global scope) is stored as NULL. Any other value must
+    be a UUID. Enforcement that only administrators may use global scope comes in a
+    later release of PRD 0006.
+    """
+    if project_id is None or project_id == "*":
+        return None
+    try:
+        return UUID(project_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="project_id must be a UUID or '*'")
+
+
+def _parse_classification(visibility: Optional[str]) -> str:
+    """Return the access class for an upload. Defaults to private."""
+    if visibility is None:
+        return AssetClassification.PRIVATE.value
+    valid = {classification.value for classification in AssetClassification}
+    if visibility not in valid:
+        raise HTTPException(
+            status_code=400,
+            detail=f"visibility must be one of: {', '.join(sorted(valid))}",
+        )
+    return visibility
 
 
 class AssetDownloadRequest(BaseModel):
