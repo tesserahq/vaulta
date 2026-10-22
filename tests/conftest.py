@@ -43,6 +43,15 @@ logger = logging.getLogger(__name__)
 
 os.environ["ENV"] = "test"
 
+# Keep boto3 off the developer's ~/.aws: tests construct a real S3 client, and
+# credential resolution against a local profile (e.g. an `aws login` session,
+# which needs botocore[crt]) makes results depend on the machine.
+os.environ["AWS_CONFIG_FILE"] = os.devnull
+os.environ["AWS_SHARED_CREDENTIALS_FILE"] = os.devnull
+os.environ.pop("AWS_PROFILE", None)
+os.environ["AWS_ACCESS_KEY_ID"] = "testing"
+os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
+
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_environment():
