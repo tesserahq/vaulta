@@ -17,7 +17,7 @@ def authorize_mock():
     running services. The allowed path is covered by the integration suite.
     """
     mock = AsyncMock(side_effect=HTTPException(status_code=403, detail="denied"))
-    with patch("app.routers.assets.authorize_asset_create", mock):
+    with patch("app.routers.assets.authorize_asset_action", mock):
         yield mock
 
 
@@ -90,3 +90,29 @@ def test_from_url_denied_project_returns_403_not_500(client, authorize_mock):
     assert response.status_code == 403
     authorize_mock.assert_awaited_once()
     mock_get.assert_not_called()
+
+
+def _allow_create_deny_publish(request, user_id, domain, action):
+    if action == "publish":
+        raise HTTPException(status_code=403, detail="denied")
+
+
+def test_shareable_upload_checks_create_then_publish(client):
+    mock = AsyncMock(side_effect=_allow_create_deny_publish)
+    with patch("app.routers.assets.authorize_asset_action", mock):
+        response = client.post(
+            "/assets",
+            files=UPLOAD_FILE,
+            data={"project_id": str(uuid4()), "visibility": "shareable"},
+        )
+
+    assert response.status_code == 403
+    assert [call.args[3] for call in mock.await_args_list] == ["create", "publish"]
+
+
+def test_private_upload_does_not_check_publish(client):
+    mock = AsyncMock(side_effect=HTTPException(status_code=403, detail="denied"))
+    with patch("app.routers.assets.authorize_asset_action", mock):
+        client.post("/assets", files=UPLOAD_FILE, data={"project_id": str(uuid4())})
+
+    assert [call.args[3] for call in mock.await_args_list] == ["create"]

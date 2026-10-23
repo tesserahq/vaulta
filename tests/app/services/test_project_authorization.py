@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from fastapi import HTTPException, Request
 
-from app.services.project_authorization import authorize_asset_create
+from app.services.project_authorization import authorize_asset_action
 
 
 def _request(token: str = "tok") -> Request:
@@ -29,7 +29,7 @@ def _custos(allowed=None, error=None) -> MagicMock:
 async def test_allowed_returns_without_error():
     custos = _custos(allowed=True)
     with patch("app.services.project_authorization.CustosClient", return_value=custos):
-        await authorize_asset_create(_request(), uuid4(), "some-domain")
+        await authorize_asset_action(_request(), uuid4(), "some-domain", "create")
 
     custos.authorize.assert_called_once()
     assert custos.authorize.call_args.kwargs["domain"] == "some-domain"
@@ -44,7 +44,7 @@ async def test_denied_raises_403():
         patch("app.services.project_authorization.CustosClient", return_value=custos),
         pytest.raises(HTTPException) as exc,
     ):
-        await authorize_asset_create(_request(), uuid4(), "some-domain")
+        await authorize_asset_action(_request(), uuid4(), "some-domain", "create")
 
     assert exc.value.status_code == 403
 
@@ -56,6 +56,6 @@ async def test_custos_unavailable_fails_closed_with_503():
         patch("app.services.project_authorization.CustosClient", return_value=custos),
         pytest.raises(HTTPException) as exc,
     ):
-        await authorize_asset_create(_request(), uuid4(), "some-domain")
+        await authorize_asset_action(_request(), uuid4(), "some-domain", "create")
 
     assert exc.value.status_code == 503
