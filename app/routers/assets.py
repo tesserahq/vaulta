@@ -9,7 +9,7 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 from app.cache.asset_cache import AssetCache
 from app.constants.asset import AssetClassification
-from app.services.project_authorization import GLOBAL_DOMAIN, authorize_asset_create
+from app.services.project_authorization import GLOBAL_DOMAIN, authorize_asset_action
 from app.commands.assets.delete_asset_command import DeleteAssetCommand
 from app.db import get_db
 from app.services.asset_lookup import get_asset_for_serving
@@ -446,11 +446,11 @@ async def _resolve_upload_scope(
         )
     project_scope = _parse_project_scope(project_id)
     classification = _parse_classification(visibility)
-    await authorize_asset_create(
-        request,
-        UUID(str(current_user.id)),
-        GLOBAL_DOMAIN if project_scope is None else str(project_scope),
-    )
+    user_id = UUID(str(current_user.id))
+    domain = GLOBAL_DOMAIN if project_scope is None else str(project_scope)
+    await authorize_asset_action(request, user_id, domain, "create")
+    if classification == AssetClassification.SHAREABLE.value:
+        await authorize_asset_action(request, user_id, domain, "publish")
     return project_scope, classification
 
 

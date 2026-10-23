@@ -17,8 +17,14 @@ ASSET_RESOURCE = "vaulta.asset"
 GLOBAL_DOMAIN = "*"
 
 
-async def authorize_asset_create(request: Request, user_id: UUID, domain: str) -> None:
-    """Raise 403 unless Custos allows the caller to create assets in ``domain``."""
+async def authorize_asset_action(
+    request: Request, user_id: UUID, domain: str, action: str
+) -> None:
+    """Raise 403 unless Custos allows the caller to ``action`` assets in ``domain``.
+
+    ``create`` covers uploads. ``publish`` covers shareable media, which is reachable
+    without login, so it is a separate grant (PRD 0006).
+    """
     settings = get_settings()
     if not settings.custos_api_url:
         raise HTTPException(
@@ -32,7 +38,7 @@ async def authorize_asset_create(request: Request, user_id: UUID, domain: str) -
         response = await asyncio.to_thread(
             custos.authorize,
             user_id=str(user_id),
-            action="create",
+            action=action,
             resource=ASSET_RESOURCE,
             domain=domain,
         )
