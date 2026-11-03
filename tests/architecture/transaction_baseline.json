@@ -1,0 +1,13 @@
+{
+  "async_database_access": {
+    "routers/assets.py::create_asset_from_url": 1,
+    "routers/assets.py::delete_asset": 1,
+    "routers/assets.py::download_asset": 1,
+    "routers/assets.py::get_all_assets": 1,
+    "routers/assets.py::get_asset": 1,
+    "routers/assets.py::get_assets_by_labels": 1,
+    "routers/assets.py::serve_asset_via_signed_url": 1,
+    "routers/assets.py::upload_asset_endpoint": 1,
+    "services/asset_upload.py::upload_asset": 1
+  }
+}
