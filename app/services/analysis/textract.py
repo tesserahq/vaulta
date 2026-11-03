@@ -1,4 +1,3 @@
-import asyncio
 import re
 from typing import Optional
 
@@ -78,10 +77,9 @@ class TextractAnalysisBackend(DocumentAnalysisBackend):
         )
         self._preprocessor = AnalysisPreprocessor(max_image_px=max_image_px)
 
-    async def analyze(self, file_bytes: bytes, content_type: str) -> AnalysisResult:
+    def analyze(self, file_bytes: bytes, content_type: str) -> AnalysisResult:
         jpeg_bytes = self._preprocessor.to_jpeg_bytes(file_bytes, content_type)
-        response = await asyncio.to_thread(
-            self._client.analyze_id,
+        response = self._client.analyze_id(
             DocumentPages=[{"Bytes": jpeg_bytes}],
         )
         return _adapt(response)

@@ -38,7 +38,7 @@ def _validate_file_size(asset_size: int) -> None:
         )
 
 
-async def upload_asset(
+def upload_asset(
     file: UploadFile,
     user_id: UUID,
     db: Session,
@@ -85,18 +85,18 @@ async def upload_asset(
         )
 
         # Read bytes once; reset so storage can stream from the same file object
-        file_bytes = await file.read()
+        file_bytes = file.file.read()
         file.file.seek(0)
 
-        await storage.save(asset.id, file)
-        url = await storage.get_url(asset.id)
+        storage.save(asset.id, file)
+        url = storage.get_url(asset.id)
 
         # Run all processors and merge their partial updates
         effective_ctx = ctx or ProcessorContext(user_id=user_id, project_id="*")
         updates: Dict[str, Any] = {}
         for processor in processors or []:
             updates.update(
-                await processor.process(
+                processor.process(
                     file_bytes,
                     file.content_type or "application/octet-stream",
                     url,

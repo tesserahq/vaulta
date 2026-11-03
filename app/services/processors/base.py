@@ -12,7 +12,7 @@ class ProcessorContext:
 
 class AssetProcessor(ABC):
     @abstractmethod
-    async def process(
+    def process(
         self,
         file_bytes: bytes,
         content_type: str,

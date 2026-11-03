@@ -28,9 +28,7 @@ class S3StorageBackend(StorageBackend):
             aws_secret_access_key=aws_secret_access_key,
         )
 
-    async def save(
-        self, asset_id: str, file: UploadFile, is_public: bool = False
-    ) -> str:
+    def save(self, asset_id: str, file: UploadFile, is_public: bool = False) -> str:
         """Save a file to S3."""
         try:
             extra_args = {"ACL": "public-read"} if is_public else {}
@@ -48,7 +46,7 @@ class S3StorageBackend(StorageBackend):
                 status_code=500, detail=f"Failed to upload file to S3: {str(e)}"
             )
 
-    async def get_url(
+    def get_url(
         self, asset_id: str, is_public: bool = False, expires_in: int = 3600
     ) -> str:
         """Get a URL for accessing the file."""
@@ -67,7 +65,7 @@ class S3StorageBackend(StorageBackend):
                 status_code=500, detail=f"Failed to generate URL: {str(e)}"
             )
 
-    async def delete(self, asset_id: str) -> bool:
+    def delete(self, asset_id: str) -> bool:
         """Delete a file from S3."""
         try:
             self.s3.delete_object(Bucket=self.bucket_name, Key=str(asset_id))

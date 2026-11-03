@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import json
 from typing import Any, Optional
@@ -66,14 +65,14 @@ class ClaudeVisionAnalysisBackend(DocumentAnalysisBackend):
 
             self._client = anthropic.Anthropic(api_key=api_key)
 
-    async def analyze(self, file_bytes: bytes, content_type: str) -> AnalysisResult:
+    def analyze(self, file_bytes: bytes, content_type: str) -> AnalysisResult:
         jpeg_bytes = self._preprocessor.to_jpeg_bytes(file_bytes, content_type)
         b64 = base64.standard_b64encode(jpeg_bytes).decode()
 
         if self._bedrock_region:
-            raw = await asyncio.to_thread(self._call_bedrock, b64)
+            raw = self._call_bedrock(b64)
         else:
-            raw = await asyncio.to_thread(self._call_anthropic, b64)
+            raw = self._call_anthropic(b64)
 
         return _adapt(raw)
 

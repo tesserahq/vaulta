@@ -21,18 +21,18 @@ class MockStorageBackend(StorageBackend):
         self.saved_assets: dict[str, UploadFile] = {}
         self.urls: dict[str, str] = {}
 
-    async def save(self, asset_id: str, file: UploadFile) -> str:
+    def save(self, asset_id: str, file: UploadFile) -> str:
         """Mock saving a file."""
         if self.should_fail:
             raise Exception("Mock storage failure")
         self.saved_assets[asset_id] = file
         return asset_id
 
-    async def get_url(self, asset_id: str) -> str:
+    def get_url(self, asset_id: str) -> str:
         """Mock getting a file URL."""
         return f"/download/{asset_id}"
 
-    async def delete(self, filename: str) -> bool:
+    def delete(self, filename: str) -> bool:
         """Mock deleting a file."""
         if filename in self.saved_assets:
             del self.saved_assets[filename]
@@ -73,12 +73,9 @@ def test_labels():
     }
 
 
-@pytest.mark.asyncio
-async def test_successful_upload(
-    test_asset, setup_user, asset_repository, mock_storage, db
-):
+def test_successful_upload(test_asset, setup_user, asset_repository, mock_storage, db):
     """Test successful file upload."""
-    response = await upload_asset(
+    response = upload_asset(
         file=test_asset,
         user_id=setup_user.id,
         db=db,
@@ -102,13 +99,12 @@ async def test_successful_upload(
     assert file.state == AssetState.COMPLETED.value
 
 
-@pytest.mark.asyncio
-async def test_upload_with_custom_name_and_labels(
+def test_upload_with_custom_name_and_labels(
     test_asset, setup_user, asset_repository, mock_storage, test_labels, db
 ):
     """Test file upload with custom name and labels."""
     custom_name = "Custom File Name"
-    response = await upload_asset(
+    response = upload_asset(
         file=test_asset,
         user_id=setup_user.id,
         db=db,
@@ -129,13 +125,10 @@ async def test_upload_with_custom_name_and_labels(
     assert len(file.labels) == 2
 
 
-@pytest.mark.asyncio
-async def test_upload_failure(
-    test_asset, setup_user, asset_repository, failing_storage, db
-):
+def test_upload_failure(test_asset, setup_user, asset_repository, failing_storage, db):
     """Test file upload failure handling."""
     with pytest.raises(Exception) as exc_info:
-        await upload_asset(
+        upload_asset(
             file=test_asset,
             user_id=setup_user.id,
             db=db,
@@ -151,12 +144,11 @@ async def test_upload_failure(
     assert "Upload failed" in assets[0].state_message
 
 
-@pytest.mark.asyncio
-async def test_upload_state_transitions(
+def test_upload_state_transitions(
     test_asset, setup_user, asset_repository, mock_storage, db
 ):
     """Test asset state transitions during upload."""
-    response = await upload_asset(
+    response = upload_asset(
         file=test_asset,
         user_id=setup_user.id,
         db=db,
@@ -172,12 +164,11 @@ async def test_upload_state_transitions(
     assert file.state_message == "File upload completed successfully"
 
 
-@pytest.mark.asyncio
-async def test_asset_metadata_handling(
+def test_asset_metadata_handling(
     test_asset, setup_user, asset_repository, mock_storage, db
 ):
     """Test asset metadata handling during upload."""
-    response = await upload_asset(
+    response = upload_asset(
         file=test_asset,
         user_id=setup_user.id,
         db=db,

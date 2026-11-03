@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import Optional
 
@@ -56,7 +55,7 @@ class GoogleDAIAnalysisBackend(DocumentAnalysisBackend):
         self._processor_id = processor_id
         self._preprocessor = AnalysisPreprocessor(max_image_px=max_image_px)
 
-    async def analyze(self, file_bytes: bytes, content_type: str) -> AnalysisResult:
+    def analyze(self, file_bytes: bytes, content_type: str) -> AnalysisResult:
         from google.cloud import documentai
 
         logger.info(
@@ -76,9 +75,7 @@ class GoogleDAIAnalysisBackend(DocumentAnalysisBackend):
             name=self._processor_id, raw_document=raw_document
         )
         try:
-            response = await asyncio.to_thread(
-                self._client.process_document, request=request
-            )
+            response = self._client.process_document(request=request)
         except Exception:
             logger.exception(
                 "Google DAI process_document failed processor=%s",

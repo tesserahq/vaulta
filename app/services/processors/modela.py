@@ -27,7 +27,7 @@ def _get_delegated_token(ctx: ProcessorContext) -> str:
 
 
 class ModelaAnalysisProcessor(AssetProcessor):
-    async def process(
+    def process(
         self,
         file_bytes: bytes,
         content_type: str,
@@ -50,7 +50,7 @@ class ModelaAnalysisProcessor(AssetProcessor):
 
 
 class ModelaSummarizationProcessor(AssetProcessor):
-    async def process(
+    def process(
         self,
         file_bytes: bytes,
         content_type: str,

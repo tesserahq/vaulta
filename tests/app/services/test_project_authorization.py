@@ -25,11 +25,10 @@ def _custos(allowed=None, error=None) -> MagicMock:
     return custos
 
 
-@pytest.mark.asyncio
-async def test_allowed_returns_without_error():
+def test_allowed_returns_without_error():
     custos = _custos(allowed=True)
     with patch("app.services.project_authorization.CustosClient", return_value=custos):
-        await authorize_asset_create(_request(), uuid4(), "some-domain")
+        authorize_asset_create(_request(), uuid4(), "some-domain")
 
     custos.authorize.assert_called_once()
     assert custos.authorize.call_args.kwargs["domain"] == "some-domain"
@@ -37,25 +36,23 @@ async def test_allowed_returns_without_error():
     assert custos.authorize.call_args.kwargs["resource"] == "vaulta.asset"
 
 
-@pytest.mark.asyncio
-async def test_denied_raises_403():
+def test_denied_raises_403():
     custos = _custos(allowed=False)
     with (
         patch("app.services.project_authorization.CustosClient", return_value=custos),
         pytest.raises(HTTPException) as exc,
     ):
-        await authorize_asset_create(_request(), uuid4(), "some-domain")
+        authorize_asset_create(_request(), uuid4(), "some-domain")
 
     assert exc.value.status_code == 403
 
 
-@pytest.mark.asyncio
-async def test_custos_unavailable_fails_closed_with_503():
+def test_custos_unavailable_fails_closed_with_503():
     custos = _custos(error=ConnectionError("custos down"))
     with (
         patch("app.services.project_authorization.CustosClient", return_value=custos),
         pytest.raises(HTTPException) as exc,
     ):
-        await authorize_asset_create(_request(), uuid4(), "some-domain")
+        authorize_asset_create(_request(), uuid4(), "some-domain")
 
     assert exc.value.status_code == 503

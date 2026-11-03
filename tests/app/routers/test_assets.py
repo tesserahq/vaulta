@@ -1,6 +1,6 @@
 import pytest
 from uuid import uuid4
-from unittest.mock import patch, AsyncMock, Mock
+from unittest.mock import patch, Mock
 import httpx
 
 from app.config import get_settings
@@ -16,13 +16,13 @@ from app.utils.token_utils import derive_secret, sign_serve_url
 class MockStorageBackend:
     """Minimal storage mock for router tests — avoids hitting real S3."""
 
-    async def save(self, asset_id, file, **kwargs):
+    def save(self, asset_id, file, **kwargs):
         return str(asset_id)
 
-    async def get_url(self, asset_id, **kwargs):
+    def get_url(self, asset_id, **kwargs):
         return f"https://mock-storage.example.com/{asset_id}"
 
-    async def delete(self, asset_id, **kwargs):
+    def delete(self, asset_id, **kwargs):
         return True
 
 
@@ -34,7 +34,7 @@ def allow_custos_asset_create():
     patches this function again with its own behavior.
     """
     with patch(
-        "app.routers.assets.authorize_asset_create", new=AsyncMock(return_value=None)
+        "app.routers.assets.authorize_asset_create", new=Mock(return_value=None)
     ):
         yield
 
@@ -198,14 +198,14 @@ class TestAssetsRouter:
         response = client.delete("/assets/invalid-uuid")
         assert response.status_code == 422  # Validation error for invalid UUID
 
-    @patch("httpx.AsyncClient.get")
+    @patch("httpx.Client.get")
     def test_create_asset_from_url_success(
         self, mock_get, client, mock_storage_factory
     ):
         """Test downloading an asset from URL successfully."""
         # Mock the HTTP response
-        mock_response = AsyncMock()
-        mock_response.raise_for_status = AsyncMock(return_value=None)
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock(return_value=None)
         mock_response.content = b"fake file content"
         mock_response.headers = {
             "content-type": "image/png",
@@ -234,7 +234,7 @@ class TestAssetsRouter:
         assert data["labels"]["source"] == "external"
         assert data["labels"]["category"] == "image"
 
-    @patch("httpx.AsyncClient.get")
+    @patch("httpx.Client.get")
     def test_create_asset_from_url_invalid_url(self, mock_get, client):
         """Test downloading an asset with invalid URL."""
         request_data = {"url": "invalid-url", "name": "Test File"}
@@ -245,16 +245,16 @@ class TestAssetsRouter:
         assert response.status_code == 400
         assert "Invalid URL format" in response.json()["detail"]
 
-    @patch("httpx.AsyncClient.get")
+    @patch("httpx.Client.get")
     def test_create_asset_from_url_http_error(self, mock_get, client):
         """Test downloading an asset when HTTP request fails."""
         # Mock HTTP error
-        mock_response = AsyncMock()
+        mock_response = Mock()
         mock_response.raise_for_status = Mock(
             side_effect=httpx.HTTPStatusError(
                 "404 Not Found",
-                request=AsyncMock(),
-                response=AsyncMock(status_code=404),
+                request=Mock(),
+                response=Mock(status_code=404),
             )
         )
         mock_get.return_value = mock_response
@@ -270,7 +270,7 @@ class TestAssetsRouter:
         assert response.status_code == 400
         assert "Failed to download file from URL: HTTP 404" in response.json()["detail"]
 
-    @patch("httpx.AsyncClient.get")
+    @patch("httpx.Client.get")
     def test_create_asset_from_url_network_error(self, mock_get, client):
         """Test downloading an asset when network request fails."""
         # Mock network error
@@ -290,14 +290,14 @@ class TestAssetsRouter:
             in response.json()["detail"]
         )
 
-    @patch("httpx.AsyncClient.get")
+    @patch("httpx.Client.get")
     def test_create_asset_from_url_minimal_request(
         self, mock_get, client, mock_storage_factory
     ):
         """Test downloading an asset with minimal request (only URL)."""
         # Mock the HTTP response
-        mock_response = AsyncMock()
-        mock_response.raise_for_status = AsyncMock(return_value=None)
+        mock_response = Mock()
+        mock_response.raise_for_status = Mock(return_value=None)
         mock_response.content = b"fake file content"
         mock_response.headers = {"content-type": "application/pdf"}
         mock_get.return_value = mock_response

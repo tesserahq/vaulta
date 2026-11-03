@@ -82,7 +82,7 @@ class LocalStorageBackend(StorageBackend):
                 detail="Invalid file path: Attempting to access outside storage directory",
             )
 
-    async def save(self, asset_id: str, file: UploadFile) -> str:
+    def save(self, asset_id: str, file: UploadFile) -> str:
         """Save a file to the local filesystem."""
         target_dir = self.private_dir
         file_path = target_dir / str(asset_id)  # Convert UUID to string
@@ -106,7 +106,7 @@ class LocalStorageBackend(StorageBackend):
                 status_code=500, detail=f"Failed to save file: {str(e)}"
             )
 
-    async def get_url(self, asset_id: str) -> str:
+    def get_url(self, asset_id: str) -> str:
         """Get a URL for accessing the file."""
         # For private files, generate a signed URL
         token = generate_token(
@@ -114,7 +114,7 @@ class LocalStorageBackend(StorageBackend):
         )
         return f"/download/{token}"
 
-    async def delete(self, filename: str) -> bool:
+    def delete(self, filename: str) -> bool:
         """Delete a file from storage."""
         file_path = self.private_dir / filename
 
