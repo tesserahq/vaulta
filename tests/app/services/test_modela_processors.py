@@ -68,18 +68,15 @@ def test_get_delegated_token_calls_exchange(mock_identies_cls, mock_m2m_cls):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 @patch("app.services.processors.modela._get_delegated_token", return_value="tok")
 @patch("tessera_sdk.clients.modela.client.ModelaClient")
-async def test_analysis_processor_happy_path(mock_client_cls, mock_token):
+def test_analysis_processor_happy_path(mock_client_cls, mock_token):
     scan_data = {"document_type": "driver_license", "confidence": 0.94, "fields": []}
     mock_client = MagicMock()
     mock_client.scan_file.return_value = MagicMock(data=scan_data)
     mock_client_cls.return_value = mock_client
 
-    result = await ModelaAnalysisProcessor().process(
-        b"bytes", CONTENT_TYPE, ASSET_URL, CTX
-    )
+    result = ModelaAnalysisProcessor().process(b"bytes", CONTENT_TYPE, ASSET_URL, CTX)
 
     assert result == {"extracted_data": scan_data}
     mock_client_cls.assert_called_once_with(api_token="tok", timeout=20)
@@ -90,29 +87,21 @@ async def test_analysis_processor_happy_path(mock_client_cls, mock_token):
     )
 
 
-@pytest.mark.asyncio
 @patch(
     "app.services.processors.modela._get_delegated_token",
     side_effect=Exception("auth error"),
 )
-async def test_analysis_processor_token_failure_returns_empty(mock_token):
-    result = await ModelaAnalysisProcessor().process(
-        b"bytes", CONTENT_TYPE, ASSET_URL, CTX
-    )
+def test_analysis_processor_token_failure_returns_empty(mock_token):
+    result = ModelaAnalysisProcessor().process(b"bytes", CONTENT_TYPE, ASSET_URL, CTX)
     assert result == {}
 
 
-@pytest.mark.asyncio
 @patch("app.services.processors.modela._get_delegated_token", return_value="tok")
 @patch("tessera_sdk.clients.modela.client.ModelaClient")
-async def test_analysis_processor_scan_failure_returns_empty(
-    mock_client_cls, mock_token
-):
+def test_analysis_processor_scan_failure_returns_empty(mock_client_cls, mock_token):
     mock_client_cls.return_value.scan_file.side_effect = Exception("scan error")
 
-    result = await ModelaAnalysisProcessor().process(
-        b"bytes", CONTENT_TYPE, ASSET_URL, CTX
-    )
+    result = ModelaAnalysisProcessor().process(b"bytes", CONTENT_TYPE, ASSET_URL, CTX)
     assert result == {}
 
 
@@ -121,17 +110,16 @@ async def test_analysis_processor_scan_failure_returns_empty(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 @patch("app.services.processors.modela._get_delegated_token", return_value="tok")
 @patch("tessera_sdk.clients.modela.client.ModelaClient")
-async def test_summarization_processor_happy_path(mock_client_cls, mock_token):
+def test_summarization_processor_happy_path(mock_client_cls, mock_token):
     mock_client = MagicMock()
     mock_client.summarize_file.return_value = MagicMock(
         summary="A California driver license.", model="modela-v1", request_id="req-1"
     )
     mock_client_cls.return_value = mock_client
 
-    result = await ModelaSummarizationProcessor().process(
+    result = ModelaSummarizationProcessor().process(
         b"bytes", CONTENT_TYPE, ASSET_URL, CTX
     )
 
@@ -149,27 +137,23 @@ async def test_summarization_processor_happy_path(mock_client_cls, mock_token):
     )
 
 
-@pytest.mark.asyncio
 @patch(
     "app.services.processors.modela._get_delegated_token",
     side_effect=Exception("auth error"),
 )
-async def test_summarization_processor_token_failure_returns_empty(mock_token):
-    result = await ModelaSummarizationProcessor().process(
+def test_summarization_processor_token_failure_returns_empty(mock_token):
+    result = ModelaSummarizationProcessor().process(
         b"bytes", CONTENT_TYPE, ASSET_URL, CTX
     )
     assert result == {}
 
 
-@pytest.mark.asyncio
 @patch("app.services.processors.modela._get_delegated_token", return_value="tok")
 @patch("tessera_sdk.clients.modela.client.ModelaClient")
-async def test_summarization_processor_api_failure_returns_empty(
-    mock_client_cls, mock_token
-):
+def test_summarization_processor_api_failure_returns_empty(mock_client_cls, mock_token):
     mock_client_cls.return_value.summarize_file.side_effect = Exception("api error")
 
-    result = await ModelaSummarizationProcessor().process(
+    result = ModelaSummarizationProcessor().process(
         b"bytes", CONTENT_TYPE, ASSET_URL, CTX
     )
     assert result == {}
@@ -180,19 +164,16 @@ async def test_summarization_processor_api_failure_returns_empty(
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.asyncio
 @patch("app.services.processors.modela._get_delegated_token", return_value="tok")
 @patch("tessera_sdk.clients.modela.client.ModelaClient")
-async def test_project_id_forwarded_to_scan(mock_client_cls, mock_token):
+def test_project_id_forwarded_to_scan(mock_client_cls, mock_token):
     """project_id from ctx must reach ModelaClient.scan_file, not be hardcoded."""
     mock_client = MagicMock()
     mock_client.scan_file.return_value = MagicMock(data={})
     mock_client_cls.return_value = mock_client
 
     custom_ctx = ProcessorContext(user_id=USER_ID, project_id="custom-project")
-    await ModelaAnalysisProcessor().process(
-        b"bytes", CONTENT_TYPE, ASSET_URL, custom_ctx
-    )
+    ModelaAnalysisProcessor().process(b"bytes", CONTENT_TYPE, ASSET_URL, custom_ctx)
 
     mock_client.scan_file.assert_called_once_with(
         file_url=ASSET_URL, mime_type=CONTENT_TYPE, project_id="custom-project"
