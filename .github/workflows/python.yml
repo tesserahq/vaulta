@@ -63,7 +63,7 @@ jobs:
         run: |
           POETRY_VERSION=$(sed -n 's/.*POETRY_VERSION=\([0-9.]*\).*/\1/p' Dockerfile)
           test -n "$POETRY_VERSION"
-          pipx install "poetry==$POETRY_VERSION" && poetry install
+          pipx install --python "$(command -v python)" "poetry==$POETRY_VERSION" && poetry install
       - name: Verify production dependency set imports cleanly
         # Match the Dockerfile's Python image, Poetry version, and production
         # dependency set so release-only import failures surface in CI.
@@ -74,7 +74,7 @@ jobs:
           test -n "$PYTHON_IMAGE"
           # Keep writes out of the checkout: the container runs as root.
           docker run --rm -v "$PWD":/code:ro -w /code "$PYTHON_IMAGE" bash -c "
-            apt-get update -qq && apt-get install -qq -y --no-install-recommends curl build-essential libcurl4-openssl-dev libssl-dev postgresql-client libffi-dev libpq-dev >/dev/null &&
+            apt-get update -qq && apt-get install -qq -y --no-install-recommends curl build-essential libcurl4-openssl-dev libssl-dev postgresql-client libffi-dev libpq-dev libpq5 tesseract-ocr libgl1 libglib2.0-0 libgomp1 >/dev/null &&
             pip install -q poetry==$POETRY_VERSION &&
             POETRY_VIRTUALENVS_IN_PROJECT=false poetry install --only main --no-root &&
             poetry run python -c 'import app.main'
