@@ -77,41 +77,23 @@ class TestAssetsRouter:
         response = client.get("/assets/invalid-uuid")
         assert response.status_code == 422
 
-    def test_get_asset_cache_hit_skips_repository(self, client, setup_asset):
-        """A positive record-cache hit must return the asset without querying the repository."""
-        underlying = Mock()
-        underlying.read.return_value = {
-            "found": True,
-            "asset": {
-                "id": str(setup_asset.id),
-                "user_id": str(setup_asset.user_id),
-                "name": setup_asset.name,
-                "filename": setup_asset.filename,
-                "mime_type": setup_asset.mime_type,
-                "size": setup_asset.size,
-                "labels": setup_asset.labels,
-                "state": setup_asset.state,
-                "state_message": setup_asset.state_message,
-                "created_at": setup_asset.created_at.isoformat(),
-                "updated_at": setup_asset.updated_at.isoformat(),
-                "human_readable_size": setup_asset.human_readable_size,
-            },
-        }
-        cache = AssetCache(underlying)
+    def test_get_asset_returns_processing_results(self, client, setup_asset, db):
+        """Polling clients read extracted_data and summary from GET /assets/{id}."""
+        setup_asset.state = "completed"
+        setup_asset.extracted_data = {"document_type": "passport"}
+        setup_asset.summary = {"text": "A passport.", "provider": "modela"}
+        db.commit()
 
-        client.app.dependency_overrides[get_asset_cache] = lambda: cache
-        try:
-            with patch.object(AssetRepository, "get_asset") as mock_get_asset:
-                response = client.get(f"/assets/{setup_asset.id}")
+        response = client.get(f"/assets/{setup_asset.id}")
 
-                assert response.status_code == 200
-                assert response.json()["id"] == str(setup_asset.id)
-                mock_get_asset.assert_not_called()
-        finally:
-            del client.app.dependency_overrides[get_asset_cache]
+        assert response.status_code == 200
+        data = response.json()
+        assert data["state"] == "completed"
+        assert data["extracted_data"] == {"document_type": "passport"}
+        assert data["summary"] == {"text": "A passport.", "provider": "modela"}
 
-    def test_get_asset_cache_miss_populates_record_cache(self, client, setup_asset):
-        """A cache miss for an existing asset must populate the record cache."""
+    def test_get_asset_never_writes_record_cache(self, client, setup_asset):
+        """Decrypted results must not be copied into Redis by the read path."""
         underlying = Mock()
         underlying.read.return_value = None
         cache = AssetCache(underlying)
@@ -121,30 +103,7 @@ class TestAssetsRouter:
             response = client.get(f"/assets/{setup_asset.id}")
 
             assert response.status_code == 200
-            underlying.write.assert_called_once()
-            key, value = underlying.write.call_args.args
-            assert key == f"record:v2:{setup_asset.id}"
-            assert value["found"] is True
-            assert value["asset"]["id"] == str(setup_asset.id)
-            assert underlying.write.call_args.kwargs == {"ttl": 600}
-        finally:
-            del client.app.dependency_overrides[get_asset_cache]
-
-    def test_get_asset_cache_miss_not_found_populates_negative_entry(self, client):
-        """A cache miss for a nonexistent asset must cache the negative result."""
-        underlying = Mock()
-        underlying.read.return_value = None
-        cache = AssetCache(underlying)
-
-        client.app.dependency_overrides[get_asset_cache] = lambda: cache
-        try:
-            missing_id = uuid4()
-            response = client.get(f"/assets/{missing_id}")
-
-            assert response.status_code == 404
-            underlying.write.assert_called_once_with(
-                f"record:v2:{missing_id}", {"found": False}, ttl=60
-            )
+            underlying.write.assert_not_called()
         finally:
             del client.app.dependency_overrides[get_asset_cache]
 

@@ -247,6 +247,6 @@ def test_summarization_processor_forwards_model(mock_client_cls, mock_token):
     ],
 )
 def test_modela_model_from_params(params, expected):
-    from app.routers.assets import _modela_model
+    from app.services.processors.factory import modela_model as _modela_model
 
     assert _modela_model(params) == expected

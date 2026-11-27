@@ -114,6 +114,10 @@ class LocalStorageBackend(StorageBackend):
         )
         return f"/download/{token}"
 
+    def read(self, asset_id: str) -> bytes:
+        """Read a stored file's bytes."""
+        return self.get_file_path(asset_id).read_bytes()
+
     def delete(self, filename: str) -> bool:
         """Delete a file from storage."""
         file_path = self.private_dir / filename

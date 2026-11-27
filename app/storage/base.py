@@ -35,6 +35,15 @@ class StorageBackend(ABC):
         pass
 
     @abstractmethod
+    def read(self, asset_id: str) -> bytes:
+        """Return the stored bytes for an asset.
+
+        The worker uses this to process an asset after the upload request
+        has returned and its UploadFile is gone.
+        """
+        pass
+
+    @abstractmethod
     def delete(self, filename: str) -> bool:
         """
         Delete a file from storage.

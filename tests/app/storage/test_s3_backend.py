@@ -51,3 +51,10 @@ class TestS3StorageBackend:
         s3_backend.s3.delete_object.assert_called_once_with(
             Bucket="test-bucket", Key="asset-123"
         )
+
+    def test_read_returns_object_bytes(self, s3_backend):
+        s3_backend.s3.get_object.return_value = {"Body": MagicMock(read=lambda: b"hi")}
+        assert s3_backend.read("asset-123") == b"hi"
+        s3_backend.s3.get_object.assert_called_once_with(
+            Bucket="test-bucket", Key="asset-123"
+        )

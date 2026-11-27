@@ -6,8 +6,10 @@ class AssetState(Enum):
 
     PENDING = "pending"  # Asset record created, asset upload not started
     UPLOADING = "uploading"  # Asset upload in progress
-    COMPLETED = "completed"  # Asset upload completed successfully
-    FAILED = "failed"  # Asset upload failed
+    PROCESSING = "processing"  # Stored; extraction/summary running in the worker
+    COMPLETED = "completed"  # Stored, and any requested processing finished
+    PROCESSING_FAILED = "processing_failed"  # Stored, but extraction/summary failed
+    FAILED = "failed"  # Asset upload failed; the file may not be stored
 
 
 class AssetClassification(Enum):

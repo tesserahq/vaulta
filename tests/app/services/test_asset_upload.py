@@ -1,7 +1,10 @@
 import pytest
+from unittest.mock import patch
+from uuid import uuid4
 from fastapi import UploadFile
 from io import BytesIO
-from app.services.asset_upload import upload_asset
+from app.services.asset_upload import ProcessingRequest, upload_asset
+from app.services.processors.base import ProcessorContext
 from app.repositories.asset_repository import AssetRepository
 from app.storage.base import StorageBackend
 from app.constants.asset import AssetState
@@ -31,6 +34,10 @@ class MockStorageBackend(StorageBackend):
     def get_url(self, asset_id: str) -> str:
         """Mock getting a file URL."""
         return f"/download/{asset_id}"
+
+    def read(self, asset_id: str) -> bytes:
+        """Mock reading a file."""
+        return b"Test file content"
 
     def delete(self, filename: str) -> bool:
         """Mock deleting a file."""
@@ -186,3 +193,81 @@ def test_asset_metadata_handling(
     assert file.filename == "test.txt"
     assert file.mime_type == "text/plain"
     assert file.size > 0
+
+
+def _processing(user_id, extract_data=True, summarize=False, config_id=None):
+    return ProcessingRequest(
+        extract_data=extract_data,
+        summarize=summarize,
+        config_id=config_id,
+        ctx=ProcessorContext(user_id=user_id, project_id="project-1"),
+    )
+
+
+def test_processing_request_returns_processing_and_queues_task(
+    test_asset, setup_user, asset_repository, mock_storage, db
+):
+    config_id = uuid4()
+    with patch("app.tasks.process_asset.process_asset_task.delay") as delay:
+        response = upload_asset(
+            file=test_asset,
+            user_id=setup_user.id,
+            db=db,
+            storage=mock_storage,
+            processing=_processing(
+                setup_user.id, extract_data=True, summarize=True, config_id=config_id
+            ),
+        )
+
+    assert response.state == AssetState.PROCESSING.value
+    assert response.extracted_data is None
+    assert response.summary is None
+    assert asset_repository.get_asset(response.asset_id).state == (
+        AssetState.PROCESSING.value
+    )
+    delay.assert_called_once_with(
+        str(response.asset_id),
+        True,
+        True,
+        str(config_id),
+        str(setup_user.id),
+        "project-1",
+    )
+
+
+def test_no_processing_requested_completes_without_queueing(
+    test_asset, setup_user, mock_storage, db
+):
+    with patch("app.tasks.process_asset.process_asset_task.delay") as delay:
+        response = upload_asset(
+            file=test_asset,
+            user_id=setup_user.id,
+            db=db,
+            storage=mock_storage,
+            processing=_processing(setup_user.id, extract_data=False),
+        )
+
+    assert response.state == AssetState.COMPLETED.value
+    delay.assert_not_called()
+
+
+def test_queue_failure_keeps_upload_and_marks_processing_failed(
+    test_asset, setup_user, asset_repository, mock_storage, db
+):
+    with patch(
+        "app.tasks.process_asset.process_asset_task.delay",
+        side_effect=ConnectionError("redis down"),
+    ):
+        response = upload_asset(
+            file=test_asset,
+            user_id=setup_user.id,
+            db=db,
+            storage=mock_storage,
+            processing=_processing(setup_user.id),
+        )
+
+    assert response.state == AssetState.PROCESSING_FAILED.value
+    assert "redis down" in response.state_message
+    stored = asset_repository.get_asset(response.asset_id)
+    assert stored.state == AssetState.PROCESSING_FAILED.value
+    assert response.asset_id in mock_storage.saved_assets
