@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import json
 import logging
@@ -59,7 +58,7 @@ class ClaudeSummarizationService:
                 api_key=api_key or settings.anthropic_api_key
             )
 
-    async def summarize(self, file_bytes: bytes, content_type: str) -> SummaryResult:
+    def summarize(self, file_bytes: bytes, content_type: str) -> SummaryResult:
         logger.info(
             "summarization started content_type=%s input_bytes=%d model=%s",
             content_type,
@@ -78,9 +77,9 @@ class ClaudeSummarizationService:
         ]
 
         if self._bedrock_region:
-            text = await asyncio.to_thread(self._call_bedrock, messages)
+            text = self._call_bedrock(messages)
         else:
-            text = await asyncio.to_thread(self._call_anthropic, messages)
+            text = self._call_anthropic(messages)
 
         logger.info("summarization complete chars=%d", len(text))
         return SummaryResult(text=text, provider="claude", model=self._model)

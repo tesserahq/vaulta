@@ -11,7 +11,7 @@ class SummarizationProcessor(AssetProcessor):
     def __init__(self, service: ClaudeSummarizationService) -> None:
         self._service = service
 
-    async def process(
+    def process(
         self,
         file_bytes: bytes,
         content_type: str,
@@ -19,7 +19,7 @@ class SummarizationProcessor(AssetProcessor):
         ctx: ProcessorContext,
     ) -> dict[str, Any]:
         try:
-            result = await self._service.summarize(file_bytes, content_type)
+            result = self._service.summarize(file_bytes, content_type)
             return {"summary": result.model_dump()}
         except Exception:
             logger.exception("summarization failed")

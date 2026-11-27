@@ -76,47 +76,41 @@ class TestClaudeSummarizationService:
         service._client = mock_client
         return service, mock_client
 
-    @pytest.mark.asyncio
-    async def test_returns_summary_result(self):
+    def test_returns_summary_result(self):
         service, _ = self._service_with_mock("A full summary of the will.")
-        result = await service.summarize(b"PDF", "application/pdf")
+        result = service.summarize(b"PDF", "application/pdf")
         assert isinstance(result, SummaryResult)
         assert result.text == "A full summary of the will."
 
-    @pytest.mark.asyncio
-    async def test_provider_is_claude(self):
+    def test_provider_is_claude(self):
         service, _ = self._service_with_mock()
-        result = await service.summarize(b"PDF", "application/pdf")
+        result = service.summarize(b"PDF", "application/pdf")
         assert result.provider == "claude"
 
-    @pytest.mark.asyncio
-    async def test_model_recorded_in_result(self):
+    def test_model_recorded_in_result(self):
         service, _ = self._service_with_mock()
-        result = await service.summarize(b"PDF", "application/pdf")
+        result = service.summarize(b"PDF", "application/pdf")
         assert result.model == service._model
 
-    @pytest.mark.asyncio
-    async def test_pdf_sends_document_block(self):
+    def test_pdf_sends_document_block(self):
         service, mock_client = self._service_with_mock()
-        await service.summarize(b"PDF_CONTENT", "application/pdf")
+        service.summarize(b"PDF_CONTENT", "application/pdf")
         call_kwargs = mock_client.messages.create.call_args
         messages = call_kwargs.kwargs["messages"]
         content = messages[0]["content"]
         assert content[0]["type"] == "document"
 
-    @pytest.mark.asyncio
-    async def test_image_sends_image_block(self):
+    def test_image_sends_image_block(self):
         service, mock_client = self._service_with_mock()
-        await service.summarize(b"IMG_CONTENT", "image/jpeg")
+        service.summarize(b"IMG_CONTENT", "image/jpeg")
         call_kwargs = mock_client.messages.create.call_args
         messages = call_kwargs.kwargs["messages"]
         content = messages[0]["content"]
         assert content[0]["type"] == "image"
 
-    @pytest.mark.asyncio
-    async def test_max_tokens_is_reasonable(self):
+    def test_max_tokens_is_reasonable(self):
         service, mock_client = self._service_with_mock()
-        await service.summarize(b"DATA", "application/pdf")
+        service.summarize(b"DATA", "application/pdf")
         call_kwargs = mock_client.messages.create.call_args
         assert call_kwargs.kwargs["max_tokens"] >= 1024
 

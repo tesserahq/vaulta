@@ -25,5 +25,5 @@ class AnalysisResult(BaseModel):
 
 class DocumentAnalysisBackend(ABC):
     @abstractmethod
-    async def analyze(self, file_bytes: bytes, content_type: str) -> AnalysisResult:
+    def analyze(self, file_bytes: bytes, content_type: str) -> AnalysisResult:
         pass

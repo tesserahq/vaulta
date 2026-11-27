@@ -92,6 +92,15 @@ class Asset(AssetInDB):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AssetDetail(Asset):
+    """A single asset with its processing results, for GET /assets/{id}."""
+
+    extracted_data: Optional[Dict[str, Any]] = None
+    """Data extracted from the document; set once processing completes."""
+    summary: Optional[Dict[str, Any]] = None
+    """Prose summary; set once processing completes."""
+
+
 class AssetUploadResponse(BaseModel):
     """Schema for file upload response."""
 

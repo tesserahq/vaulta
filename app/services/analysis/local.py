@@ -1,5 +1,3 @@
-import asyncio
-
 from app.processing.document_analyzer import DocumentAnalyzer
 from app.providers import AnalysisProvider
 from app.services.analysis.base import (
@@ -34,8 +32,8 @@ class LocalAnalysisBackend(DocumentAnalysisBackend):
     def __init__(self) -> None:
         self._analyzer = DocumentAnalyzer()
 
-    async def analyze(self, file_bytes: bytes, content_type: str) -> AnalysisResult:
-        raw = await asyncio.to_thread(self._analyzer.analyze, file_bytes)
+    def analyze(self, file_bytes: bytes, content_type: str) -> AnalysisResult:
+        raw = self._analyzer.analyze(file_bytes)
         return _adapt(raw)
 
 

@@ -6,7 +6,6 @@ which only administrators hold. Failures close the request: if Custos cannot ans
 the upload is refused rather than accepted without a check.
 """
 
-import asyncio
 from uuid import UUID
 
 from fastapi import HTTPException, Request, status
@@ -17,7 +16,7 @@ ASSET_RESOURCE = "vaulta.asset"
 GLOBAL_DOMAIN = "*"
 
 
-async def authorize_asset_action(
+def authorize_asset_action(
     request: Request, user_id: UUID, domain: str, action: str
 ) -> None:
     """Raise 403 unless Custos allows the caller to ``action`` assets in ``domain``.
@@ -35,8 +34,7 @@ async def authorize_asset_action(
     token = request.headers.get("Authorization", "").removeprefix("Bearer ")
     custos = CustosClient(base_url=settings.custos_api_url, api_token=token)
     try:
-        response = await asyncio.to_thread(
-            custos.authorize,
+        response = custos.authorize(
             user_id=str(user_id),
             action=action,
             resource=ASSET_RESOURCE,

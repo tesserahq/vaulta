@@ -11,7 +11,7 @@ class AnalysisProcessor(AssetProcessor):
     def __init__(self, backend: DocumentAnalysisBackend) -> None:
         self._backend = backend
 
-    async def process(
+    def process(
         self,
         file_bytes: bytes,
         content_type: str,
@@ -19,7 +19,7 @@ class AnalysisProcessor(AssetProcessor):
         ctx: ProcessorContext,
     ) -> dict[str, Any]:
         try:
-            result = await self._backend.analyze(file_bytes, content_type)
+            result = self._backend.analyze(file_bytes, content_type)
             return {"extracted_data": result.model_dump()}
         except Exception:
             logger.exception("document analysis failed")

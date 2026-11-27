@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     database_max_overflow: int = Field(
         default=5, json_schema_extra={"env": "DATABASE_MAX_OVERFLOW"}
     )
+    # Seconds a request waits for a pooled connection before failing. Short,
+    # so pool exhaustion surfaces as fast errors instead of stalled requests
+    # (linden-api SDD 0012).
+    database_pool_timeout: float = Field(
+        default=5, json_schema_extra={"env": "DATABASE_POOL_TIMEOUT"}
+    )
     environment: str = Field(
         default="development",
         validation_alias=AliasChoices("ENV", "ENVIRONMENT"),
@@ -111,6 +117,14 @@ class Settings(BaseSettings):
         default="", json_schema_extra={"env": "MODELA_AUDIENCE"}
     )
     modela_scope: str = Field(default="", json_schema_extra={"env": "MODELA_SCOPE"})
+    modela_scan_timeout: int = Field(
+        default=20,
+        description=(
+            "Seconds to wait for Modela's /scan/file. Long documents (e.g. wills) "
+            "need more than the default."
+        ),
+        json_schema_extra={"env": "MODELA_SCAN_TIMEOUT"},
+    )
 
     oidc_domain: str = "test.oidc.com"
     oidc_api_audience: str = "https://test-api"

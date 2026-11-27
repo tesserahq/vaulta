@@ -41,6 +41,7 @@ db_manager = DatabaseManager(
     database_url=settings.database_url,
     pool_size=settings.database_pool_size,
     max_overflow=settings.database_max_overflow,
+    pool_timeout=settings.database_pool_timeout,
     pool_pre_ping=True,
     pool_recycle=300,
     pool_use_lifo=True,
@@ -51,3 +52,5 @@ db_manager = DatabaseManager(
 engine = db_manager.engine
 SessionLocal = db_manager.SessionLocal
 get_db = db_manager.get_db
+# Entry points outside a request (Celery tasks) use `with session_scope() as db:`.
+session_scope = db_manager.session_scope

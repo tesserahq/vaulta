@@ -6,7 +6,7 @@ class StorageBackend(ABC):
     """Abstract base class for storage backends."""
 
     @abstractmethod
-    async def save(self, asset_id: str, file: UploadFile) -> str:
+    def save(self, asset_id: str, file: UploadFile) -> str:
         """
         Save a file to storage.
 
@@ -21,7 +21,7 @@ class StorageBackend(ABC):
         pass
 
     @abstractmethod
-    async def get_url(self, asset_id: str) -> str:
+    def get_url(self, asset_id: str) -> str:
         """
         Get a URL for accessing the file.
 
@@ -35,7 +35,16 @@ class StorageBackend(ABC):
         pass
 
     @abstractmethod
-    async def delete(self, filename: str) -> bool:
+    def read(self, asset_id: str) -> bytes:
+        """Return the stored bytes for an asset.
+
+        The worker uses this to process an asset after the upload request
+        has returned and its UploadFile is gone.
+        """
+        pass
+
+    @abstractmethod
+    def delete(self, filename: str) -> bool:
         """
         Delete a file from storage.
 

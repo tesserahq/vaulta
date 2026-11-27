@@ -1,5 +1,6 @@
 from fastapi import APIRouter, UploadFile, Depends, HTTPException, Form, Query, Request
 from typing import Optional, List, Dict, Any
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from app.storage.base import StorageBackend
@@ -13,8 +14,13 @@ from app.services.project_authorization import GLOBAL_DOMAIN, authorize_asset_ac
 from app.commands.assets.delete_asset_command import DeleteAssetCommand
 from app.db import get_db
 from app.services.asset_lookup import get_asset_for_serving
-from app.services.asset_upload import upload_asset
-from app.schemas.asset import AssetSearchQuery, AssetUploadResponse, Asset
+from app.services.asset_upload import ProcessingRequest, upload_asset
+from app.schemas.asset import (
+    AssetDetail,
+    AssetSearchQuery,
+    AssetUploadResponse,
+    Asset,
+)
 from app.schemas.common import MessageResponse
 from app.models.user import User
 from app.repositories.asset_repository import AssetRepository
@@ -28,21 +34,13 @@ from urllib.parse import urlparse
 
 from app.utils.auth import get_current_user
 from app.utils.token_utils import verify_signed_url
-from app.providers import AnalysisProvider
 from app.routers.utils.dependencies import (
     get_asset_by_id,
     get_asset_cache,
     get_validated_file,
     resolve_analysis_config,
 )
-from app.services.processors.analysis import AnalysisProcessor
 from app.services.processors.base import ProcessorContext
-from app.services.processors.modela import (
-    ModelaAnalysisProcessor,
-    ModelaSummarizationProcessor,
-)
-from app.services.processors.summarization import SummarizationProcessor
-from app.services.summarization.claude import ClaudeSummarizationService
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
@@ -53,7 +51,7 @@ def get_storage_backend() -> StorageBackend:
 
 
 @router.get("", response_model=List[Asset])
-async def get_all_assets(
+def get_all_assets(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(
         100, ge=1, le=1000, description="Maximum number of records to return"
@@ -73,14 +71,38 @@ async def get_all_assets(
     return assets
 
 
-@router.get("/{asset_id}", response_model=Asset)
-async def get_asset(
-    asset: Asset = Depends(get_asset_by_id),
+@router.get("/{asset_id}", response_model=AssetDetail)
+def get_asset(
+    asset_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get a specific asset by UUID."""
+    """Get a specific asset by UUID, including extracted_data and summary.
+
+    Uploads that ask for extraction or a summary return in `processing`; poll
+    this endpoint until `state` is `completed` or `processing_failed`.
+
+    Reads Postgres directly rather than through the record cache, so the
+    decrypted extraction and summary are never written to Redis.
+    """
+    asset = AssetRepository(db).get_asset(asset_id)
+    if asset is None:
+        raise HTTPException(status_code=404, detail="Asset not found")
     return asset
+
+
+def _load_serving_metadata(asset_uuid: UUID, db: Session, cache: AssetCache):
+    """Look up what serving an asset needs, then release the DB connection.
+
+    FastAPI doesn't close ``Depends(get_db)`` sessions until the full response
+    (including a StreamingResponse body) has been sent, so without the close
+    the connection would sit checked out of the pool for the entire file
+    transfer/S3 fetch instead of just this lookup.
+    """
+    try:
+        return get_asset_for_serving(asset_uuid, AssetRepository(db), cache)
+    finally:
+        db.close()
 
 
 @router.get("/serve/{payload}")
@@ -100,15 +122,9 @@ async def serve_asset_via_signed_url(
         except ValueError:
             raise HTTPException(status_code=404, detail="Asset not found")
 
-        asset_repository = AssetRepository(db)
-        metadata = get_asset_for_serving(asset_uuid, asset_repository, cache)
-
-        # Release the DB connection now: FastAPI doesn't close `Depends(get_db)`
-        # sessions until the full response (including a StreamingResponse body)
-        # has been sent, so without this the connection would sit checked out
-        # of the pool for the entire file transfer/S3 fetch instead of just
-        # this lookup.
-        db.close()
+        metadata = await run_in_threadpool(
+            _load_serving_metadata, asset_uuid, db, cache
+        )
 
         if metadata is None:
             raise HTTPException(status_code=404, detail="Asset not found")
@@ -139,7 +155,7 @@ async def serve_asset_via_signed_url(
 
         # For S3 and other backends: proxy the bytes through the server.
         # This avoids exposing presigned URLs to clients and works with existing /serve/ tokens.
-        presigned_url = await storage.get_url(asset_id)
+        presigned_url = await run_in_threadpool(storage.get_url, asset_id)
 
         # Open the upstream response before committing to a 200, so an S3
         # error isn't streamed back to the client as the asset (and then
@@ -189,7 +205,7 @@ async def serve_asset_via_signed_url(
 
 
 @router.get("/download/{token}")
-async def download_asset(
+def download_asset(
     token: str,
     storage: StorageBackend = Depends(get_storage_backend),
     db: Session = Depends(get_db),
@@ -245,7 +261,7 @@ class AssetQuery(BaseModel):
 
 
 @router.post("/search", response_model=List[Asset])
-async def get_assets_by_labels(
+def get_assets_by_labels(
     query: AssetQuery,
     skip: int = Query(0, ge=0, description="Number of records to skip"),
     limit: int = Query(
@@ -288,7 +304,7 @@ async def get_assets_by_labels(
 
 
 @router.post("", response_model=AssetUploadResponse)
-async def upload_asset_endpoint(
+def upload_asset_endpoint(
     request: Request,
     file: UploadFile = Depends(get_validated_file),
     name: Optional[str] = Form(None),
@@ -323,7 +339,14 @@ async def upload_asset_endpoint(
     - file: The asset to upload (required)
     - name: Optional custom name for the asset
     - labels: Optional JSON string containing a dictionary of labels
-    - extract_data: Optional boolean flag to extract data from the document using DocumentAnalyzer
+    - extract_data: Optional boolean flag to extract data from the document
+    - summarize: Optional boolean flag to generate a prose summary
+    - config_id: Optional AnalysisConfig to use (defaults to the default config)
+
+    Extraction and summarization run in the background worker. When either is
+    requested the response comes back with state "processing" and no
+    extracted_data/summary; poll GET /assets/{asset_id} until state is
+    "completed" or "processing_failed".
     - expires_in: Optional seconds; requests a long-lived signed serve_url (e.g. for
       images embedded in outbound emails) instead of the default short-lived URL,
       capped by MAX_SERVE_URL_EXPIRY
@@ -379,55 +402,40 @@ async def upload_asset_endpoint(
 
     storage = StorageFactory.get_backend()
 
-    ctx = ProcessorContext(
-        user_id=UUID(str(current_user.id)),
-        project_id=project_id or "*",
-    )
+    # Resolve now so an unknown config_id is a 404 here, and the worker uses the
+    # config that was the default at upload time.
     config = (
         resolve_analysis_config(config_id, db) if (extract_data or summarize) else None
     )
+    processing = ProcessingRequest(
+        extract_data=extract_data,
+        summarize=summarize,
+        config_id=config.id if config is not None else None,
+        ctx=ProcessorContext(
+            user_id=UUID(str(current_user.id)),
+            project_id=project_id or "*",
+        ),
+    )
 
-    processors = []
-    if extract_data:
-        if config and config.provider == AnalysisProvider.MODELA:
-            processors.append(ModelaAnalysisProcessor())
-        else:
-            from app.services.analysis.factory import AnalysisFactory
-
-            if config is not None:
-                backend = AnalysisFactory.get_backend(
-                    config.provider, config.provider_params
-                )
-            else:
-                backend = AnalysisFactory.get_backend()
-            if backend:
-                processors.append(AnalysisProcessor(backend))
-    if summarize:
-        if config and config.summarization_provider == AnalysisProvider.MODELA:
-            processors.append(ModelaSummarizationProcessor())
-        else:
-            processors.append(SummarizationProcessor(ClaudeSummarizationService()))
-
-    project_scope, classification = await _resolve_upload_scope(
+    project_scope, classification = _resolve_upload_scope(
         request, current_user, project_id, visibility
     )
 
-    return await upload_asset(
+    return upload_asset(
         file=file,
         user_id=UUID(str(current_user.id)),
         db=db,
         storage=storage,
         name=name,
         labels=parsed_labels,
-        processors=processors,
-        ctx=ctx,
+        processing=processing,
         expires_in=expires_in,
         project_id=project_scope,
         classification=classification,
     )
 
 
-async def _resolve_upload_scope(
+def _resolve_upload_scope(
     request: Request,
     current_user: User,
     project_id: Optional[str],
@@ -448,9 +456,9 @@ async def _resolve_upload_scope(
     classification = _parse_classification(visibility)
     user_id = UUID(str(current_user.id))
     domain = GLOBAL_DOMAIN if project_scope is None else str(project_scope)
-    await authorize_asset_action(request, user_id, domain, "create")
+    authorize_asset_action(request, user_id, domain, "create")
     if classification == AssetClassification.SHAREABLE.value:
-        await authorize_asset_action(request, user_id, domain, "publish")
+        authorize_asset_action(request, user_id, domain, "publish")
     return project_scope, classification
 
 
@@ -494,7 +502,7 @@ class AssetDownloadRequest(BaseModel):
 
 
 @router.post("/from-url", response_model=AssetUploadResponse)
-async def create_asset_from_url(
+def create_asset_from_url(
     http_request: Request,
     request: AssetDownloadRequest,
     db: Session = Depends(get_db),
@@ -527,7 +535,7 @@ async def create_asset_from_url(
     """
     # Scope is checked before the download's broad exception handler below, which
     # would otherwise turn an authorization failure into a 500.
-    project_scope, classification = await _resolve_upload_scope(
+    project_scope, classification = _resolve_upload_scope(
         http_request, current_user, request.project_id, request.visibility
     )
 
@@ -541,8 +549,8 @@ async def create_asset_from_url(
 
     # Download the file
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(request.url, follow_redirects=True)
+        with httpx.Client(timeout=30.0) as client:
+            response = client.get(request.url, follow_redirects=True)
             response.raise_for_status()
 
             # Get content type and filename from response
@@ -584,7 +592,7 @@ async def create_asset_from_url(
                     # Create a file-like object that upload_asset expects
                     self.file = open(file_path, "rb")
 
-                async def read(self, size: int = -1):
+                def read(self, size: int = -1):
                     if not self._file:
                         self._file = open(self.file_path, "rb")
                     return self._file.read(size)
@@ -626,7 +634,7 @@ async def create_asset_from_url(
             # Use the existing upload logic
             storage = StorageFactory.get_backend()
 
-            return await upload_asset(
+            return upload_asset(
                 file=downloaded_file,
                 user_id=UUID(str(current_user.id)),
                 db=db,
@@ -653,7 +661,7 @@ async def create_asset_from_url(
 
 
 @router.delete("/{asset_id}", response_model=MessageResponse)
-async def delete_asset(
+def delete_asset(
     asset: Asset = Depends(get_asset_by_id),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
