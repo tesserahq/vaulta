@@ -12,6 +12,12 @@ def _scan_timeout() -> int:
     return get_settings().modela_scan_timeout
 
 
+def _summary_timeout() -> int:
+    from app.config import get_settings
+
+    return get_settings().modela_summary_timeout
+
+
 def _model_kwargs(model: str | None) -> dict[str, str]:
     """Only send `model` when one is configured, so Modela keeps its default otherwise."""
     return {"model": model} if model else {}
@@ -84,7 +90,9 @@ class ModelaSummarizationProcessor(AssetProcessor):
             from tessera_sdk.clients.modela.client import ModelaClient
 
             token = _get_delegated_token(ctx)
-            response = ModelaClient(api_token=token).summarize_file(
+            response = ModelaClient(
+                api_token=token, timeout=_summary_timeout()
+            ).summarize_file(
                 file_url=asset_url,
                 mime_type=content_type,
                 project_id=ctx.project_id,

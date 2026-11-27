@@ -125,6 +125,14 @@ class Settings(BaseSettings):
         ),
         json_schema_extra={"env": "MODELA_SCAN_TIMEOUT"},
     )
+    modela_summary_timeout: int = Field(
+        default=60,
+        description=(
+            "Seconds to wait for Modela's /summarize/file. Without it the SDK's "
+            "3-second default applies, which long documents always exceed."
+        ),
+        json_schema_extra={"env": "MODELA_SUMMARY_TIMEOUT"},
+    )
 
     oidc_domain: str = "test.oidc.com"
     oidc_api_audience: str = "https://test-api"

@@ -30,6 +30,8 @@ This ensures the Modela API call is attributed to `ctx.user_id`, not to the Vaul
 |---|---|---|
 | `MODELA_AUDIENCE` | Yes | Token exchange audience (e.g. `https://modela.tessera.com`). |
 | `MODELA_SCOPE` | Yes | Scopes to request (e.g. `scan:file summarize:file`). |
+| `MODELA_SCAN_TIMEOUT` | No | Seconds to wait for `/scan/file` (default 20). |
+| `MODELA_SUMMARY_TIMEOUT` | No | Seconds to wait for `/summarize/file` (default 60). |
 
 M2M credentials must also be configured in the `tessera-sdk` settings (typically `SERVICE_ACCOUNT_CLIENT_ID` and `SERVICE_ACCOUNT_CLIENT_SECRET`). These are not Vaulta settings; they are read by the SDK directly.
 
