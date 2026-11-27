@@ -133,6 +133,9 @@ jobs:
           GH_TOKEN: ${{ secrets.INFRA_REPO_TOKEN }}
           DIGEST: ${{ steps.image.outputs.digest }}
           SHA: ${{ steps.verify.outputs.release_sha }}
+        # Pins the API and the Celery worker to the same digest; infra's
+        # validate-vaulta-stack.sh rejects a release that moves only one, and
+        # deploy-vaulta.yml rolls out the API before the worker.
         run: |
           cd infra
           git config user.name "vaulta-release-bot"
@@ -142,4 +145,5 @@ jobs:
             --digest "$DIGEST" --tag "$TAG" --sha "$SHA" \
             --release-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/tag/$TAG" \
             --source "$GITHUB_REPOSITORY" \
-            production/apps/vaulta-api/Dockerfile
+            production/apps/vaulta-api/Dockerfile \
+            production/stacks/vaulta/compose.yaml
