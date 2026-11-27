@@ -218,6 +218,26 @@ def test_analysis_processor_uses_configured_timeout(mock_client_cls, mock_token)
 
 @patch("app.services.processors.modela._get_delegated_token", return_value="tok")
 @patch("tessera_sdk.clients.modela.client.ModelaClient")
+def test_summarization_processor_uses_configured_timeout(mock_client_cls, mock_token):
+    """Without an explicit timeout the SDK waits only 3 seconds for a summary."""
+    mock_client_cls.return_value.summarize_file.return_value = MagicMock(
+        summary="s", model="m"
+    )
+
+    with patch("app.services.processors.modela._summary_timeout", return_value=90):
+        ModelaSummarizationProcessor().process(b"bytes", CONTENT_TYPE, ASSET_URL, CTX)
+
+    mock_client_cls.assert_called_once_with(api_token="tok", timeout=90)
+
+
+def test_summary_timeout_defaults_to_sixty_seconds():
+    from app.config import Settings
+
+    assert Settings.model_fields["modela_summary_timeout"].default == 60
+
+
+@patch("app.services.processors.modela._get_delegated_token", return_value="tok")
+@patch("tessera_sdk.clients.modela.client.ModelaClient")
 def test_summarization_processor_forwards_model(mock_client_cls, mock_token):
     mock_client = MagicMock()
     mock_client.summarize_file.return_value = MagicMock(summary="s", model="m")
