@@ -6,6 +6,7 @@ FastAPI asset management service. Python 3.14, PostgreSQL, SQLAlchemy, Alembic, 
 
 ```bash
 poetry run dev          # Start dev server with hot reload (port 8000)
+poetry run worker       # Start the Celery worker (queue "vaulta"; needs Redis via REDIS_URL)
 poetry run pytest       # Run tests
 alembic upgrade head    # Apply migrations
 alembic revision --autogenerate -m "description"  # Generate a new migration
@@ -31,6 +32,8 @@ app/
       base.py           # ABC + AnalysisResult types
       factory.py        # AnalysisFactory singleton (mirrors StorageFactory)
       local.py / textract.py / google_dai.py / claude_vision.py
+    processors/factory.py  # build_processors(): config -> extraction/summary processors
+  tasks/                # Celery tasks (process_asset); app/core/celery_app.py configures Celery
   storage/              # Pluggable storage backends (local, S3)
     factory.py          # StorageFactory singleton
 tests/
@@ -67,6 +70,8 @@ Auth is bypassed in tests via `MockAuthenticationMiddleware`; the test user is i
 **AnalysisConfig default invariant** — exactly one row must have `is_default=True` at all times. The repository enforces this; attempting to demote the active default raises `ValueError` (surfaced as HTTP 409).
 
 **Serve URLs are a public contract** — `serve_url`s (`/assets/serve/{asset_id}.{client_id}.{expires_at}.{hmac}`, minted on upload when `expires_in` is passed, capped by `MAX_SERVE_URL_EXPIRY`) are embedded in emails that have already been sent (looply-portal, sendly-portal). Changing the route, the payload/signature format or `derive_secret`, or rotating `MASTER_SECRET_KEY`, breaks every image in those emails until they expire. The S3 branch streams bytes through Vaulta and must never return an upstream S3 error as a cacheable 200 — successful responses are `Cache-Control: immutable` (see #152, and #153 for the CloudFront plan).
+
+**Extraction and summarization run in the worker** — `POST /assets` with `extract_data` or `summarize` stores the file, sets the asset to `processing`, and enqueues `process_asset_task`; clients poll `GET /assets/{id}` until `state` is `completed` or `processing_failed` (file stored, but a requested result is missing). `GET /assets/{id}` returns `extracted_data`/`summary` and reads Postgres directly, so decrypted results never enter the Redis record cache. Tasks follow looply's split: a thin Celery entry point opens `session_scope()` and calls a `_process_asset(db, ...)` function that tests call directly.
 
 **Lazy provider imports** — all cloud SDK imports (`boto3`, `google.cloud`, `anthropic`) are deferred to `__init__` so the app starts even if optional deps aren't installed.
 

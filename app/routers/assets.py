@@ -14,8 +14,13 @@ from app.services.project_authorization import GLOBAL_DOMAIN, authorize_asset_cr
 from app.commands.assets.delete_asset_command import DeleteAssetCommand
 from app.db import get_db
 from app.services.asset_lookup import get_asset_for_serving
-from app.services.asset_upload import upload_asset
-from app.schemas.asset import AssetSearchQuery, AssetUploadResponse, Asset
+from app.services.asset_upload import ProcessingRequest, upload_asset
+from app.schemas.asset import (
+    AssetDetail,
+    AssetSearchQuery,
+    AssetUploadResponse,
+    Asset,
+)
 from app.schemas.common import MessageResponse
 from app.models.user import User
 from app.repositories.asset_repository import AssetRepository
@@ -29,21 +34,13 @@ from urllib.parse import urlparse
 
 from app.utils.auth import get_current_user
 from app.utils.token_utils import verify_signed_url
-from app.providers import AnalysisProvider
 from app.routers.utils.dependencies import (
     get_asset_by_id,
     get_asset_cache,
     get_validated_file,
     resolve_analysis_config,
 )
-from app.services.processors.analysis import AnalysisProcessor
 from app.services.processors.base import ProcessorContext
-from app.services.processors.modela import (
-    ModelaAnalysisProcessor,
-    ModelaSummarizationProcessor,
-)
-from app.services.processors.summarization import SummarizationProcessor
-from app.services.summarization.claude import ClaudeSummarizationService
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
@@ -74,13 +71,23 @@ def get_all_assets(
     return assets
 
 
-@router.get("/{asset_id}", response_model=Asset)
+@router.get("/{asset_id}", response_model=AssetDetail)
 def get_asset(
-    asset: Asset = Depends(get_asset_by_id),
+    asset_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Get a specific asset by UUID."""
+    """Get a specific asset by UUID, including extracted_data and summary.
+
+    Uploads that ask for extraction or a summary return in `processing`; poll
+    this endpoint until `state` is `completed` or `processing_failed`.
+
+    Reads Postgres directly rather than through the record cache, so the
+    decrypted extraction and summary are never written to Redis.
+    """
+    asset = AssetRepository(db).get_asset(asset_id)
+    if asset is None:
+        raise HTTPException(status_code=404, detail="Asset not found")
     return asset
 
 
@@ -332,7 +339,14 @@ def upload_asset_endpoint(
     - file: The asset to upload (required)
     - name: Optional custom name for the asset
     - labels: Optional JSON string containing a dictionary of labels
-    - extract_data: Optional boolean flag to extract data from the document using DocumentAnalyzer
+    - extract_data: Optional boolean flag to extract data from the document
+    - summarize: Optional boolean flag to generate a prose summary
+    - config_id: Optional AnalysisConfig to use (defaults to the default config)
+
+    Extraction and summarization run in the background worker. When either is
+    requested the response comes back with state "processing" and no
+    extracted_data/summary; poll GET /assets/{asset_id} until state is
+    "completed" or "processing_failed".
     - expires_in: Optional seconds; requests a long-lived signed serve_url (e.g. for
       images embedded in outbound emails) instead of the default short-lived URL,
       capped by MAX_SERVE_URL_EXPIRY
@@ -388,40 +402,20 @@ def upload_asset_endpoint(
 
     storage = StorageFactory.get_backend()
 
-    ctx = ProcessorContext(
-        user_id=UUID(str(current_user.id)),
-        project_id=project_id or "*",
-    )
+    # Resolve now so an unknown config_id is a 404 here, and the worker uses the
+    # config that was the default at upload time.
     config = (
         resolve_analysis_config(config_id, db) if (extract_data or summarize) else None
     )
-
-    processors = []
-    if extract_data:
-        if config and config.provider == AnalysisProvider.MODELA:
-            processors.append(
-                ModelaAnalysisProcessor(model=_modela_model(config.provider_params))
-            )
-        else:
-            from app.services.analysis.factory import AnalysisFactory
-
-            if config is not None:
-                backend = AnalysisFactory.get_backend(
-                    config.provider, config.provider_params
-                )
-            else:
-                backend = AnalysisFactory.get_backend()
-            if backend:
-                processors.append(AnalysisProcessor(backend))
-    if summarize:
-        if config and config.summarization_provider == AnalysisProvider.MODELA:
-            processors.append(
-                ModelaSummarizationProcessor(
-                    model=_modela_model(config.summarization_provider_params)
-                )
-            )
-        else:
-            processors.append(SummarizationProcessor(ClaudeSummarizationService()))
+    processing = ProcessingRequest(
+        extract_data=extract_data,
+        summarize=summarize,
+        config_id=config.id if config is not None else None,
+        ctx=ProcessorContext(
+            user_id=UUID(str(current_user.id)),
+            project_id=project_id or "*",
+        ),
+    )
 
     project_scope, classification = _resolve_upload_scope(
         request, current_user, project_id, visibility
@@ -434,22 +428,11 @@ def upload_asset_endpoint(
         storage=storage,
         name=name,
         labels=parsed_labels,
-        processors=processors,
-        ctx=ctx,
+        processing=processing,
         expires_in=expires_in,
         project_id=project_scope,
         classification=classification,
     )
-
-
-def _modela_model(params: dict | None) -> str | None:
-    """The Modela ModelConfig slug an analysis config asks for, if any.
-
-    Set it as `provider_params.model` (extraction) or
-    `summarization_provider_params.model` (summary), e.g. {"model": "will-scan"}.
-    """
-    model = (params or {}).get("model")
-    return model if isinstance(model, str) and model.strip() else None
 
 
 def _resolve_upload_scope(

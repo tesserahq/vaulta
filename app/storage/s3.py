@@ -65,6 +65,11 @@ class S3StorageBackend(StorageBackend):
                 status_code=500, detail=f"Failed to generate URL: {str(e)}"
             )
 
+    def read(self, asset_id: str) -> bytes:
+        """Download an object's bytes from S3."""
+        response = self.s3.get_object(Bucket=self.bucket_name, Key=str(asset_id))
+        return response["Body"].read()
+
     def delete(self, asset_id: str) -> bool:
         """Delete a file from S3."""
         try:
