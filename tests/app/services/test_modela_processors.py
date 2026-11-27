@@ -178,3 +178,75 @@ def test_project_id_forwarded_to_scan(mock_client_cls, mock_token):
     mock_client.scan_file.assert_called_once_with(
         file_url=ASSET_URL, mime_type=CONTENT_TYPE, project_id="custom-project"
     )
+
+
+# ---------------------------------------------------------------------------
+# ModelConfig slug and timeout (tesserahq/vaulta#186)
+# ---------------------------------------------------------------------------
+
+
+@patch("app.services.processors.modela._get_delegated_token", return_value="tok")
+@patch("tessera_sdk.clients.modela.client.ModelaClient")
+def test_analysis_processor_forwards_model(mock_client_cls, mock_token):
+    mock_client = MagicMock()
+    mock_client.scan_file.return_value = MagicMock(data={"schema_version": "will.v1"})
+    mock_client_cls.return_value = mock_client
+
+    result = ModelaAnalysisProcessor(model="will-scan").process(
+        b"bytes", CONTENT_TYPE, ASSET_URL, CTX
+    )
+
+    assert result == {"extracted_data": {"schema_version": "will.v1"}}
+    mock_client.scan_file.assert_called_once_with(
+        file_url=ASSET_URL,
+        mime_type=CONTENT_TYPE,
+        project_id=PROJECT_ID,
+        model="will-scan",
+    )
+
+
+@patch("app.services.processors.modela._get_delegated_token", return_value="tok")
+@patch("tessera_sdk.clients.modela.client.ModelaClient")
+def test_analysis_processor_uses_configured_timeout(mock_client_cls, mock_token):
+    mock_client_cls.return_value.scan_file.return_value = MagicMock(data={})
+
+    with patch("app.services.processors.modela._scan_timeout", return_value=120):
+        ModelaAnalysisProcessor().process(b"bytes", CONTENT_TYPE, ASSET_URL, CTX)
+
+    mock_client_cls.assert_called_once_with(api_token="tok", timeout=120)
+
+
+@patch("app.services.processors.modela._get_delegated_token", return_value="tok")
+@patch("tessera_sdk.clients.modela.client.ModelaClient")
+def test_summarization_processor_forwards_model(mock_client_cls, mock_token):
+    mock_client = MagicMock()
+    mock_client.summarize_file.return_value = MagicMock(summary="s", model="m")
+    mock_client_cls.return_value = mock_client
+
+    ModelaSummarizationProcessor(model="will-summary").process(
+        b"bytes", CONTENT_TYPE, ASSET_URL, CTX
+    )
+
+    mock_client.summarize_file.assert_called_once_with(
+        file_url=ASSET_URL,
+        mime_type=CONTENT_TYPE,
+        project_id=PROJECT_ID,
+        model="will-summary",
+    )
+
+
+@pytest.mark.parametrize(
+    "params, expected",
+    [
+        ({"model": "will-scan"}, "will-scan"),
+        ({}, None),
+        (None, None),
+        ({"model": ""}, None),
+        ({"model": "   "}, None),
+        ({"model": 3}, None),
+    ],
+)
+def test_modela_model_from_params(params, expected):
+    from app.routers.assets import _modela_model
+
+    assert _modela_model(params) == expected
