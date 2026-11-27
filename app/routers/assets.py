@@ -41,6 +41,7 @@ from app.routers.utils.dependencies import (
     resolve_analysis_config,
 )
 from app.services.processors.base import ProcessorContext
+from app.providers import AnalysisProvider
 
 router = APIRouter(prefix="/assets", tags=["assets"])
 
@@ -311,6 +312,20 @@ def upload_asset_endpoint(
     labels: Optional[str] = Form(None),
     extract_data: bool = Form(False),
     config_id: Optional[UUID] = Form(None),
+    provider: Optional[str] = Form(
+        None,
+        description=(
+            "Optional extraction provider for this upload (e.g. 'modela'), "
+            "overriding the analysis config's provider."
+        ),
+    ),
+    provider_params: Optional[str] = Form(
+        None,
+        description=(
+            "Optional JSON object merged over the analysis config's "
+            'provider_params for this upload, e.g. {"model": "will-scan"}.'
+        ),
+    ),
     summarize: bool = Form(False),
     project_id: Optional[str] = Form(None),
     visibility: Optional[str] = Form(
@@ -342,6 +357,9 @@ def upload_asset_endpoint(
     - extract_data: Optional boolean flag to extract data from the document
     - summarize: Optional boolean flag to generate a prose summary
     - config_id: Optional AnalysisConfig to use (defaults to the default config)
+    - provider: Optional extraction provider, overriding the config's
+    - provider_params: Optional JSON object merged over the config's
+      provider_params, e.g. {"model": "will-scan"} with provider "modela"
 
     Extraction and summarization run in the background worker. When either is
     requested the response comes back with state "processing" and no
@@ -400,6 +418,8 @@ def upload_asset_endpoint(
                 status_code=400, detail=f"Error parsing labels: {str(e)}"
             )
 
+    extraction_override = _parse_extraction_override(provider, provider_params)
+
     storage = StorageFactory.get_backend()
 
     # Resolve now so an unknown config_id is a 404 here, and the worker uses the
@@ -411,6 +431,8 @@ def upload_asset_endpoint(
         extract_data=extract_data,
         summarize=summarize,
         config_id=config.id if config is not None else None,
+        provider=extraction_override[0],
+        provider_params=extraction_override[1],
         ctx=ProcessorContext(
             user_id=UUID(str(current_user.id)),
             project_id=project_id or "*",
@@ -433,6 +455,36 @@ def upload_asset_endpoint(
         project_id=project_scope,
         classification=classification,
     )
+
+
+def _parse_extraction_override(
+    provider: Optional[str], provider_params: Optional[str]
+) -> tuple[Optional[str], Optional[Dict[str, Any]]]:
+    """Validate the upload's provider / provider_params override (400 if bad)."""
+    if provider is not None:
+        provider = provider.strip() or None
+    if provider is not None and provider not in set(AnalysisProvider):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unknown provider {provider!r}. "
+                f"Valid options: {', '.join(AnalysisProvider)}"
+            ),
+        )
+
+    params: Optional[Dict[str, Any]] = None
+    if provider_params is not None and provider_params.strip():
+        try:
+            params = json.loads(provider_params)
+        except json.JSONDecodeError:
+            raise HTTPException(
+                status_code=400, detail="provider_params must be a JSON object"
+            )
+        if not isinstance(params, dict):
+            raise HTTPException(
+                status_code=400, detail="provider_params must be a JSON object"
+            )
+    return provider, params
 
 
 def _resolve_upload_scope(

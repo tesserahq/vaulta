@@ -36,6 +36,10 @@ class ProcessingRequest:
     summarize: bool
     config_id: Optional[UUID]
     ctx: ProcessorContext
+    # The upload's extraction override: provider replaces the config's, and
+    # provider_params are merged over the config's.
+    provider: Optional[str] = None
+    provider_params: Optional[Dict[str, Any]] = None
 
     @property
     def requested(self) -> bool:
@@ -52,6 +56,8 @@ def _enqueue_processing(asset_id: UUID, processing: ProcessingRequest) -> None:
         str(processing.config_id) if processing.config_id else None,
         str(processing.ctx.user_id),
         processing.ctx.project_id,
+        processing.provider,
+        processing.provider_params,
     )
 
 

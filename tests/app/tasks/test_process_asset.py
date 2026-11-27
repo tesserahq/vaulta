@@ -44,11 +44,31 @@ def ctx(setup_user):
     return ProcessorContext(user_id=setup_user.id, project_id="project-1")
 
 
-def _run(db, storage, asset_id, ctx, processors, extract_data=True, summarize=True):
+def _run(
+    db,
+    storage,
+    asset_id,
+    ctx,
+    processors,
+    extract_data=True,
+    summarize=True,
+    provider=None,
+    provider_params=None,
+):
     with patch(
         "app.tasks.process_asset.build_processors", return_value=processors
     ) as build:
-        _process_asset(db, storage, asset_id, extract_data, summarize, None, ctx)
+        _process_asset(
+            db,
+            storage,
+            asset_id,
+            extract_data,
+            summarize,
+            None,
+            ctx,
+            provider,
+            provider_params,
+        )
     return build
 
 
@@ -58,7 +78,7 @@ def test_success_saves_results_and_completes(db, storage, processing_asset, ctx)
 
     build = _run(db, storage, processing_asset.id, ctx, [extractor, summarizer])
 
-    build.assert_called_once_with(None, True, True)
+    build.assert_called_once_with(None, True, True, provider=None, provider_params=None)
     storage.read.assert_called_once_with(str(processing_asset.id))
     assert extractor.calls == [
         (
@@ -72,6 +92,29 @@ def test_success_saves_results_and_completes(db, storage, processing_asset, ctx)
     assert asset.state == AssetState.COMPLETED.value
     assert asset.extracted_data == {"name": "Harry"}
     assert asset.summary == {"text": "A will."}
+
+
+def test_upload_override_reaches_build_processors(db, storage, processing_asset, ctx):
+    extractor = FakeProcessor({"extracted_data": {"schema_version": "will.v1"}})
+
+    build = _run(
+        db,
+        storage,
+        processing_asset.id,
+        ctx,
+        [extractor],
+        summarize=False,
+        provider="modela",
+        provider_params={"model": "will-scan"},
+    )
+
+    build.assert_called_once_with(
+        None,
+        True,
+        False,
+        provider="modela",
+        provider_params={"model": "will-scan"},
+    )
 
 
 def test_empty_result_marks_processing_failed_and_keeps_the_rest(

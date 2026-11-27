@@ -195,11 +195,20 @@ def test_asset_metadata_handling(
     assert file.size > 0
 
 
-def _processing(user_id, extract_data=True, summarize=False, config_id=None):
+def _processing(
+    user_id,
+    extract_data=True,
+    summarize=False,
+    config_id=None,
+    provider=None,
+    provider_params=None,
+):
     return ProcessingRequest(
         extract_data=extract_data,
         summarize=summarize,
         config_id=config_id,
+        provider=provider,
+        provider_params=provider_params,
         ctx=ProcessorContext(user_id=user_id, project_id="project-1"),
     )
 
@@ -232,6 +241,36 @@ def test_processing_request_returns_processing_and_queues_task(
         str(config_id),
         str(setup_user.id),
         "project-1",
+        None,
+        None,
+    )
+
+
+def test_processing_request_forwards_the_override_to_the_task(
+    test_asset, setup_user, mock_storage, db
+):
+    with patch("app.tasks.process_asset.process_asset_task.delay") as delay:
+        response = upload_asset(
+            file=test_asset,
+            user_id=setup_user.id,
+            db=db,
+            storage=mock_storage,
+            processing=_processing(
+                setup_user.id,
+                provider="modela",
+                provider_params={"model": "will-scan"},
+            ),
+        )
+
+    delay.assert_called_once_with(
+        str(response.asset_id),
+        True,
+        False,
+        None,
+        str(setup_user.id),
+        "project-1",
+        "modela",
+        {"model": "will-scan"},
     )
 
 
