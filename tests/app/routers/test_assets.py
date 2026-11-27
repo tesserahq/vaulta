@@ -34,7 +34,7 @@ def allow_custos_asset_create():
     patches this function again with its own behavior.
     """
     with patch(
-        "app.routers.assets.authorize_asset_create", new=Mock(return_value=None)
+        "app.routers.assets.authorize_asset_action", new=Mock(return_value=None)
     ):
         yield
 
