@@ -117,6 +117,14 @@ class Settings(BaseSettings):
         default="", json_schema_extra={"env": "MODELA_AUDIENCE"}
     )
     modela_scope: str = Field(default="", json_schema_extra={"env": "MODELA_SCOPE"})
+    modela_scan_timeout: int = Field(
+        default=20,
+        description=(
+            "Seconds to wait for Modela's /scan/file. Long documents (e.g. wills) "
+            "need more than the default."
+        ),
+        json_schema_extra={"env": "MODELA_SCAN_TIMEOUT"},
+    )
 
     oidc_domain: str = "test.oidc.com"
     oidc_api_audience: str = "https://test-api"

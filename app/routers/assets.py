@@ -399,7 +399,9 @@ def upload_asset_endpoint(
     processors = []
     if extract_data:
         if config and config.provider == AnalysisProvider.MODELA:
-            processors.append(ModelaAnalysisProcessor())
+            processors.append(
+                ModelaAnalysisProcessor(model=_modela_model(config.provider_params))
+            )
         else:
             from app.services.analysis.factory import AnalysisFactory
 
@@ -413,7 +415,11 @@ def upload_asset_endpoint(
                 processors.append(AnalysisProcessor(backend))
     if summarize:
         if config and config.summarization_provider == AnalysisProvider.MODELA:
-            processors.append(ModelaSummarizationProcessor())
+            processors.append(
+                ModelaSummarizationProcessor(
+                    model=_modela_model(config.summarization_provider_params)
+                )
+            )
         else:
             processors.append(SummarizationProcessor(ClaudeSummarizationService()))
 
@@ -434,6 +440,16 @@ def upload_asset_endpoint(
         project_id=project_scope,
         classification=classification,
     )
+
+
+def _modela_model(params: dict | None) -> str | None:
+    """The Modela ModelConfig slug an analysis config asks for, if any.
+
+    Set it as `provider_params.model` (extraction) or
+    `summarization_provider_params.model` (summary), e.g. {"model": "will-scan"}.
+    """
+    model = (params or {}).get("model")
+    return model if isinstance(model, str) and model.strip() else None
 
 
 def _resolve_upload_scope(

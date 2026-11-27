@@ -6,8 +6,15 @@ from app.services.processors.base import AssetProcessor, ProcessorContext
 logger = logging.getLogger(__name__)
 
 
-# TODO: We need to improve this timeout, it's too long and we should have a better way to handle this.
-MODELA_TIMEOUT = 20
+def _scan_timeout() -> int:
+    from app.config import get_settings
+
+    return get_settings().modela_scan_timeout
+
+
+def _model_kwargs(model: str | None) -> dict[str, str]:
+    """Only send `model` when one is configured, so Modela keeps its default otherwise."""
+    return {"model": model} if model else {}
 
 
 def _get_delegated_token(ctx: ProcessorContext) -> str:
@@ -27,6 +34,16 @@ def _get_delegated_token(ctx: ProcessorContext) -> str:
 
 
 class ModelaAnalysisProcessor(AssetProcessor):
+    """Runs Modela's /scan/file.
+
+    `model` is a Modela ModelConfig slug (e.g. "will-scan"); its output_schema
+    decides the shape of `extracted_data`. Without it Modela uses its default
+    scan config.
+    """
+
+    def __init__(self, model: str | None = None) -> None:
+        self.model = model
+
     def process(
         self,
         file_bytes: bytes,
@@ -38,18 +55,24 @@ class ModelaAnalysisProcessor(AssetProcessor):
             from tessera_sdk.clients.modela.client import ModelaClient
 
             token = _get_delegated_token(ctx)
-            response = ModelaClient(api_token=token, timeout=MODELA_TIMEOUT).scan_file(
+            response = ModelaClient(api_token=token, timeout=_scan_timeout()).scan_file(
                 file_url=asset_url,
                 mime_type=content_type,
                 project_id=ctx.project_id,
+                **_model_kwargs(self.model),
             )
             return {"extracted_data": response.data}
         except Exception:
-            logger.exception("modela analysis failed")
+            logger.exception("modela analysis failed", extra={"model": self.model})
             return {}
 
 
 class ModelaSummarizationProcessor(AssetProcessor):
+    """Runs Modela's /summarize/file, optionally with a specific ModelConfig slug."""
+
+    def __init__(self, model: str | None = None) -> None:
+        self.model = model
+
     def process(
         self,
         file_bytes: bytes,
@@ -65,6 +88,7 @@ class ModelaSummarizationProcessor(AssetProcessor):
                 file_url=asset_url,
                 mime_type=content_type,
                 project_id=ctx.project_id,
+                **_model_kwargs(self.model),
             )
             return {
                 "summary": {
@@ -74,5 +98,5 @@ class ModelaSummarizationProcessor(AssetProcessor):
                 }
             }
         except Exception:
-            logger.exception("modela summarization failed")
+            logger.exception("modela summarization failed", extra={"model": self.model})
             return {}
