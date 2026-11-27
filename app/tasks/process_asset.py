@@ -36,6 +36,8 @@ def _process_asset(
     summarize: bool,
     config_id: Optional[UUID],
     ctx: ProcessorContext,
+    provider: Optional[str] = None,
+    provider_params: Optional[Dict[str, Any]] = None,
 ) -> None:
     asset = AssetRepository(db).get_asset(asset_id)
     if asset is None:
@@ -52,7 +54,13 @@ def _process_asset(
         if config is None:
             raise ValueError(f"AnalysisConfig {config_id} no longer exists")
 
-    processors = build_processors(config, extract_data, summarize)
+    processors = build_processors(
+        config,
+        extract_data,
+        summarize,
+        provider=provider,
+        provider_params=provider_params,
+    )
     file_bytes = storage.read(str(asset_id))
     url = storage.get_url(asset_id)
 
@@ -99,6 +107,8 @@ def process_asset_task(
     config_id: Optional[str],
     user_id: str,
     project_id: str,
+    provider: Optional[str] = None,
+    provider_params: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Celery entry point: opens its own session and delegates to _process_asset."""
     asset_uuid = UUID(asset_id)
@@ -112,6 +122,8 @@ def process_asset_task(
                 summarize,
                 UUID(config_id) if config_id else None,
                 ProcessorContext(user_id=UUID(user_id), project_id=project_id),
+                provider,
+                provider_params,
             )
     except Exception:
         logger.exception("Processing failed for asset %s", asset_id)

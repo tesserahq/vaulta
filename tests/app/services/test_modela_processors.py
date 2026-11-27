@@ -270,3 +270,72 @@ def test_modela_model_from_params(params, expected):
     from app.services.processors.factory import modela_model as _modela_model
 
     assert _modela_model(params) == expected
+
+
+# ---------------------------------------------------------------------------
+# build_processors: the upload's provider / provider_params override
+# ---------------------------------------------------------------------------
+
+
+def _config(provider, params):
+    return MagicMock(provider=provider, provider_params=params)
+
+
+def test_override_without_a_config_runs_modela_with_that_model():
+    from app.services.processors.factory import build_processors
+
+    processors = build_processors(
+        None, True, False, provider="modela", provider_params={"model": "will-scan"}
+    )
+
+    assert len(processors) == 1
+    assert isinstance(processors[0], ModelaAnalysisProcessor)
+    assert processors[0].model == "will-scan"
+
+
+def test_override_params_win_over_the_configs():
+    from app.services.processors.factory import build_processors
+
+    config = _config("modela", {"model": "from-config"})
+
+    processors = build_processors(
+        config, True, False, provider_params={"model": "will-scan"}
+    )
+
+    assert processors[0].model == "will-scan"
+
+
+def test_override_provider_wins_over_the_configs():
+    from app.services.processors.factory import build_processors
+
+    config = _config("claude", {"model": "claude-x"})
+
+    processors = build_processors(
+        config, True, False, provider="modela", provider_params={"model": "will-scan"}
+    )
+
+    assert isinstance(processors[0], ModelaAnalysisProcessor)
+    assert processors[0].model == "will-scan"
+
+
+def test_override_params_merge_with_the_configs_other_params():
+    from app.services.processors.factory import build_processors
+
+    config = _config("claude", {"model": "claude-x", "bedrock_region": "eu-west-1"})
+
+    with patch("app.services.analysis.factory.AnalysisFactory.get_backend") as get:
+        build_processors(config, True, False, provider_params={"model": "claude-y"})
+
+    get.assert_called_once_with(
+        "claude", {"model": "claude-y", "bedrock_region": "eu-west-1"}
+    )
+
+
+def test_without_override_the_config_decides():
+    from app.services.processors.factory import build_processors
+
+    processors = build_processors(
+        _config("modela", {"model": "from-config"}), True, False
+    )
+
+    assert processors[0].model == "from-config"
