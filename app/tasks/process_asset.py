@@ -79,12 +79,14 @@ def _process_asset(
     )
 
 
-def _mark_processing_failed(db: Session, asset_id: UUID, error: str) -> None:
+def _mark_processing_failed(db: Session, asset_id: UUID) -> None:
+    # state_message is returned to clients; the exception itself can carry
+    # hosts, bucket names or SQL, so it stays in the logs and Rollbar.
     UpdateAssetCommand(db).execute(
         asset_id,
         AssetUpdate(
             state=AssetState.PROCESSING_FAILED.value,
-            state_message=f"Processing failed: {error}",
+            state_message="Processing failed: internal error during processing",
         ),
     )
 
@@ -111,10 +113,10 @@ def process_asset_task(
                 UUID(config_id) if config_id else None,
                 ProcessorContext(user_id=UUID(user_id), project_id=project_id),
             )
-    except Exception as e:
+    except Exception:
         logger.exception("Processing failed for asset %s", asset_id)
         # The failed session rolled back; record the failure in a fresh one so
         # pollers don't wait on `processing` forever.
         with session_scope() as db:
-            _mark_processing_failed(db, asset_uuid, str(e))
+            _mark_processing_failed(db, asset_uuid)
         raise

@@ -148,12 +148,13 @@ def upload_asset(
         if state == AssetState.PROCESSING.value:
             try:
                 _enqueue_processing(asset.id, processing)
-            except Exception as e:
+            except Exception:
                 # The file is stored, so the upload still succeeds; say why
                 # nothing will be extracted instead of leaving it `processing`.
+                # The error (it can name the broker host) stays in the logs.
                 logger.exception("Could not queue processing for asset %s", asset.id)
                 state = AssetState.PROCESSING_FAILED.value
-                state_message = f"Processing could not be queued: {e}"
+                state_message = "Processing could not be queued"
                 update_command.execute(
                     asset.id, AssetUpdate(state=state, state_message=state_message)
                 )

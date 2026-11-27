@@ -267,7 +267,8 @@ def test_queue_failure_keeps_upload_and_marks_processing_failed(
         )
 
     assert response.state == AssetState.PROCESSING_FAILED.value
-    assert "redis down" in response.state_message
+    assert response.state_message == "Processing could not be queued"
+    assert "redis down" not in response.state_message
     stored = asset_repository.get_asset(response.asset_id)
     assert stored.state == AssetState.PROCESSING_FAILED.value
     assert response.asset_id in mock_storage.saved_assets

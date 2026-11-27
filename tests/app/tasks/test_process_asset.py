@@ -140,4 +140,7 @@ def test_task_records_processing_failed_when_processing_raises(
 
     asset = AssetRepository(db).get_asset(processing_asset.id)
     assert asset.state == AssetState.PROCESSING_FAILED.value
-    assert "bucket gone" in asset.state_message
+    assert asset.state_message == (
+        "Processing failed: internal error during processing"
+    )
+    assert "bucket gone" not in asset.state_message
